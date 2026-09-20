@@ -1,26 +1,28 @@
 import { useState } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useNavigate, useParams, Link } from "react-router-dom";
+import api from "../api/client";
 
-export default function Login() {
-  const { login } = useAuth();
+export default function ResetPassword() {
+  const { token } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const resetSuccess = searchParams.get("reset") === "success";
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/");
+      await api.post(`/auth/reset-password/${token}`, { password });
+      navigate("/login?reset=success");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      setError(err.response?.data?.message || "Reset failed");
     } finally {
       setLoading(false);
     }
@@ -30,17 +32,10 @@ export default function Login() {
     <div className="auth-page">
       <div className="card auth-card">
         <img src="/logo.png" alt="S AND S BEARINGS" className="auth-logo" />
-        <h2>Sign in</h2>
-        {resetSuccess && (
-          <p className="hint">Password reset successful. Please log in with your new password.</p>
-        )}
+        <h2>Reset Password</h2>
         <form onSubmit={handleSubmit}>
           <label>
-            Email
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
-          </label>
-          <label>
-            Password
+            New Password
             <input
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -48,13 +43,22 @@ export default function Login() {
               required
             />
           </label>
+          <label>
+            Confirm Password
+            <input
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              type="password"
+              required
+            />
+          </label>
           {error && <p className="error-text">{error}</p>}
           <button type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Login"}
+            {loading ? "Resetting..." : "Reset Password"}
           </button>
         </form>
         <p className="hint">
-          <Link to="/forgot-password">Forgot password?</Link>
+          <Link to="/login">Back to login</Link>
         </p>
       </div>
     </div>
