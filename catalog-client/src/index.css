@@ -1,0 +1,55 @@
+:root {
+  --color-primary: #f58027;
+  --color-primary-dark: #d96c1a;
+  --color-primary-light: #fff1e6;
+  --color-dark: #161124;
+  --color-dark-soft: #241d3d;
+  --color-bg: #f6f5f9;
+  --color-surface: #ffffff;
+  --color-border: #e5e2ec;
+  --color-text: #1f1b2e;
+  --color-text-muted: #6b6577;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 6px rgba(22, 17, 36, 0.06), 0 8px 24px rgba(22, 17, 36, 0.07);
+  --sans: "Segoe UI", system-ui, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-dark);
+  font-weight: 700;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+button,
+input {
+  font-family: inherit;
+}
