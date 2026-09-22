@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../api/client";
 import { formatDate, toDateInputValue } from "../utils/formatDate";
 import Pagination from "../components/Pagination";
+import { formatAmount } from "../utils/formatAmount";
 
 function firstOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -138,7 +139,7 @@ export default function Reports() {
           <>
             <div className="stat-row">
               <div className="stat">
-                <div className="value">Rs. {valuation.totalValue.toFixed(2)}</div>
+                <div className="value">Rs. {formatAmount(valuation.totalValue)}</div>
                 <div className="label">Total Stock Value</div>
               </div>
             </div>
@@ -159,8 +160,8 @@ export default function Reports() {
                       <td>{v.bearingNumber}</td>
                       <td>{v.brand}</td>
                       <td>{v.currentStock}</td>
-                      <td>{v.costPrice.toFixed(2)}</td>
-                      <td>{v.stockValue.toFixed(2)}</td>
+                      <td>{formatAmount(v.costPrice)}</td>
+                      <td>{formatAmount(v.stockValue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -206,11 +207,11 @@ export default function Reports() {
                 <div className="label">Invoices</div>
               </div>
               <div className="stat">
-                <div className="value">Rs. {sales.totalSales.toFixed(2)}</div>
+                <div className="value">Rs. {formatAmount(sales.totalSales)}</div>
                 <div className="label">Total Sales</div>
               </div>
               <div className="stat">
-                <div className="value">Rs. {sales.totalTax.toFixed(2)}</div>
+                <div className="value">Rs. {formatAmount(sales.totalTax)}</div>
                 <div className="label">Total Tax Collected</div>
               </div>
             </div>
@@ -229,7 +230,7 @@ export default function Reports() {
                     <tr key={inv._id}>
                       <td>{inv.invoiceNo}</td>
                       <td>{formatDate(inv.createdAt)}</td>
-                      <td>{inv.grandTotal.toFixed(2)}</td>
+                      <td>{formatAmount(inv.grandTotal)}</td>
                       <td>{inv.paymentStatus}</td>
                     </tr>
                   ))}

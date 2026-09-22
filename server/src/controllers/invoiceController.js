@@ -6,6 +6,7 @@ import StockMovement from "../models/StockMovement.js";
 import { nextSequence } from "../models/Counter.js";
 import { calcInvoiceTotals, DEFAULT_GST_RATE } from "../utils/gstCalc.js";
 import { getFinancialYearLabel } from "../utils/financialYear.js";
+import { roundAmount } from "../utils/money.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
 import { streamInvoicePdf } from "../utils/generateInvoicePdf.js";
 
@@ -13,7 +14,11 @@ import { streamInvoicePdf } from "../utils/generateInvoicePdf.js";
 // productId -> quantity this invoice (when editing) already holds, so stock availability is
 // checked as "what's free right now, plus what this invoice itself already accounts for" — lets
 // an edit validate cleanly with zero DB writes before anything is actually touched.
-async function resolveInvoiceItems(res, items, partyId, existingReserved = new Map()) {
+async function resolveInvoiceItems(res, items, partyId, applyTax, existingReserved = new Map()) {
+  if (!partyId) {
+    res.status(400);
+    throw new Error("Select a customer for the invoice");
+  }
   if (!items?.length) {
     res.status(400);
     throw new Error("Invoice must have at least one item");
@@ -55,8 +60,8 @@ async function resolveInvoiceItems(res, items, partyId, existingReserved = new M
       unit: product.unit,
       quantity,
       unitPrice: price,
-      // Walk-in (no party on the invoice) sales are billed tax-free.
-      gstRate: partyId ? DEFAULT_GST_RATE : 0,
+      // The cashier can untick "Add GST" at checkout to bill without tax.
+      gstRate: applyTax ? DEFAULT_GST_RATE : 0,
     };
   });
 }
@@ -114,14 +119,14 @@ async function reverseSaleEffects(items, invoiceNo, userId, note) {
 
 async function applyPartyCredit(partyId, paymentStatus, grandTotal, paid) {
   if (partyId && paymentStatus !== "paid") {
-    const unpaid = grandTotal - paid;
+    const unpaid = roundAmount(grandTotal - paid);
     await Party.findByIdAndUpdate(partyId, { $inc: { creditBalance: unpaid } });
   }
 }
 
 async function reversePartyCredit(partyId, invoice) {
   if (partyId && invoice.paymentStatus !== "paid") {
-    const unpaid = invoice.grandTotal - invoice.amountPaid;
+    const unpaid = roundAmount(invoice.grandTotal - invoice.amountPaid);
     await Party.findByIdAndUpdate(partyId, { $inc: { creditBalance: -unpaid } });
   }
 }
@@ -133,6 +138,7 @@ export const createInvoice = asyncHandler(async (req, res) => {
   const {
     partyId,
     isInterState = false,
+    applyTax = true,
     paymentMode = "cash",
     amountPaid,
     items,
@@ -140,13 +146,13 @@ export const createInvoice = asyncHandler(async (req, res) => {
     discountValue,
   } = req.body;
 
-  const lineInputs = await resolveInvoiceItems(res, items, partyId);
+  const lineInputs = await resolveInvoiceItems(res, items, partyId, applyTax !== false);
   const discount = resolveDiscount(res, discountType, discountValue);
   const totals = calcInvoiceTotals(lineInputs, isInterState, discount);
 
   // Default to fully paid (grand total, tax included) when the caller doesn't specify an amount —
   // e.g. cash/UPI/card sales collected in full. Only "credit" sales default to 0 paid.
-  const paid = amountPaid ?? (paymentMode === "credit" ? 0 : totals.grandTotal);
+  const paid = roundAmount(amountPaid ?? (paymentMode === "credit" ? 0 : totals.grandTotal));
   const paymentStatus =
     paymentMode === "credit" ? "credit" : paid >= totals.grandTotal ? "paid" : "partial";
 
@@ -198,6 +204,7 @@ export const updateInvoice = asyncHandler(async (req, res) => {
   const {
     partyId,
     isInterState = false,
+    applyTax = true,
     paymentMode = "cash",
     amountPaid,
     items,
@@ -211,11 +218,11 @@ export const updateInvoice = asyncHandler(async (req, res) => {
     existingReserved.set(key, (existingReserved.get(key) || 0) + item.quantity);
   }
 
-  const lineInputs = await resolveInvoiceItems(res, items, partyId, existingReserved);
+  const lineInputs = await resolveInvoiceItems(res, items, partyId, applyTax !== false, existingReserved);
   const discount = resolveDiscount(res, discountType, discountValue);
   const totals = calcInvoiceTotals(lineInputs, isInterState, discount);
 
-  const paid = amountPaid ?? (paymentMode === "credit" ? 0 : totals.grandTotal);
+  const paid = roundAmount(amountPaid ?? (paymentMode === "credit" ? 0 : totals.grandTotal));
   const paymentStatus =
     paymentMode === "credit" ? "credit" : paid >= totals.grandTotal ? "paid" : "partial";
 

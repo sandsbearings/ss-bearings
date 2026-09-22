@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { money } from "../utils/money.js";
 
 const invoiceItemSchema = new mongoose.Schema(
   {
@@ -8,10 +9,10 @@ const invoiceItemSchema = new mongoose.Schema(
     hsnCode: String,
     quantity: { type: Number, required: true },
     unit: String,
-    unitPrice: { type: Number, required: true },
+    unitPrice: { ...money, required: true },
     gstRate: { type: Number, required: true },
-    taxAmount: { type: Number, required: true },
-    lineTotal: { type: Number, required: true }, // qty * unitPrice + taxAmount
+    taxAmount: { ...money, required: true },
+    lineTotal: { ...money, required: true }, // qty * unitPrice + taxAmount
   },
   { _id: false }
 );
@@ -24,21 +25,21 @@ const invoiceSchema = new mongoose.Schema(
 
     isInterState: { type: Boolean, default: false }, // true => IGST, false => CGST+SGST
 
-    subtotal: { type: Number, required: true }, // pre-discount
+    subtotal: { ...money, required: true }, // pre-discount
 
     discountType: { type: String, enum: ["flat", "percent"] }, // absent = no discount
     discountValue: { type: Number, default: 0 }, // raw amount the cashier entered (₹ or %)
-    discountAmount: { type: Number, default: 0 }, // actual ₹ reduction applied to the subtotal
+    discountAmount: { ...money, default: 0 }, // actual ₹ reduction applied to the subtotal
 
-    cgst: { type: Number, default: 0 },
-    sgst: { type: Number, default: 0 },
-    igst: { type: Number, default: 0 },
-    totalTax: { type: Number, required: true },
-    grandTotal: { type: Number, required: true },
+    cgst: { ...money, default: 0 },
+    sgst: { ...money, default: 0 },
+    igst: { ...money, default: 0 },
+    totalTax: { ...money, required: true },
+    grandTotal: { ...money, required: true },
 
     paymentMode: { type: String, enum: ["cash", "upi", "card", "credit"], default: "cash" },
     paymentStatus: { type: String, enum: ["paid", "partial", "credit"], default: "paid" },
-    amountPaid: { type: Number, default: 0 },
+    amountPaid: { ...money, default: 0 },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 

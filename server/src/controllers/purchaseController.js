@@ -5,6 +5,7 @@ import StockMovement from "../models/StockMovement.js";
 import { nextSequence } from "../models/Counter.js";
 import Party from "../models/Party.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { roundAmount } from "../utils/money.js";
 
 // POST /api/purchases
 // body: { supplierId, items: [{ productId, quantity, costPrice }] }
@@ -16,7 +17,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
     throw new Error("Purchase must have at least one item");
   }
 
-  const totalAmount = items.reduce((sum, i) => sum + i.quantity * i.costPrice, 0);
+  const totalAmount = roundAmount(items.reduce((sum, i) => sum + i.quantity * roundAmount(i.costPrice), 0));
   const seq = await nextSequence("purchase");
   const purchaseNo = `PUR-${String(seq).padStart(5, "0")}`;
 
@@ -31,7 +32,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
   for (const item of items) {
     await Product.findByIdAndUpdate(item.productId, {
       $inc: { currentStock: item.quantity },
-      $set: { costPrice: item.costPrice },
+      $set: { costPrice: roundAmount(item.costPrice) },
     });
     await StockMovement.create({
       product: item.productId,

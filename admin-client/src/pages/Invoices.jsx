@@ -6,6 +6,7 @@ import Pagination from "../components/Pagination";
 import { formatDateTime } from "../utils/formatDate";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
+import { formatAmount } from "../utils/formatAmount";
 
 const statusBadge = {
   paid: "orange",
@@ -138,7 +139,7 @@ export default function Invoices() {
                 <td>{inv.invoiceNo}</td>
                 <td>{formatDateTime(inv.createdAt)}</td>
                 <td>{inv.party?.name || "Walk-in"}</td>
-                <td>{inv.grandTotal.toFixed(2)}</td>
+                <td>{formatAmount(inv.grandTotal)}</td>
                 <td style={{ textTransform: "capitalize" }}>{inv.paymentMode}</td>
                 <td>
                   {inv.status === "voided" ? (

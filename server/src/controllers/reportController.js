@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import Product from "../models/Product.js";
 import Invoice from "../models/Invoice.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { roundAmount } from "../utils/money.js";
 
 // GET /api/reports/low-stock
 export const lowStockReport = asyncHandler(async (req, res) => {
@@ -23,7 +24,7 @@ export const stockValuationReport = asyncHandler(async (req, res) => {
     brand: p.brand,
     currentStock: p.currentStock,
     costPrice: p.costPrice,
-    stockValue: Math.round(p.currentStock * p.costPrice * 100) / 100,
+    stockValue: roundAmount(p.currentStock * p.costPrice),
   }));
 
   // Total value has to reflect every product, not just this page, so it's summed via aggregation
@@ -34,7 +35,7 @@ export const stockValuationReport = asyncHandler(async (req, res) => {
 
   res.json({
     ...buildPage(items, total, page, limit),
-    totalValue: Math.round((totals?.totalValue || 0) * 100) / 100,
+    totalValue: roundAmount(totals?.totalValue || 0),
   });
 });
 
@@ -65,7 +66,7 @@ export const salesReport = asyncHandler(async (req, res) => {
 
   res.json({
     ...buildPage(invoices, total, page, limit),
-    totalSales: Math.round(totalSales * 100) / 100,
-    totalTax: Math.round(totalTax * 100) / 100,
+    totalSales: roundAmount(totalSales),
+    totalTax: roundAmount(totalTax),
   });
 });

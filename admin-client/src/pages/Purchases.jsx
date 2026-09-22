@@ -3,6 +3,7 @@ import api from "../api/client";
 import ProductAutocomplete from "../components/ProductAutocomplete";
 import Pagination from "../components/Pagination";
 import { formatDate } from "../utils/formatDate";
+import { formatAmount } from "../utils/formatAmount";
 
 export default function Purchases() {
   const [purchases, setPurchases] = useState([]);
@@ -160,7 +161,7 @@ export default function Purchases() {
                     onChange={(e) => updateItem(c.product._id, "costPrice", Number(e.target.value))}
                   />
                 </td>
-                <td>{(c.quantity * c.costPrice).toFixed(2)}</td>
+                <td>{formatAmount(c.quantity * c.costPrice)}</td>
                 <td>
                   <button className="danger" onClick={() => removeFromCart(c.product._id)}>
                     Remove
@@ -174,7 +175,7 @@ export default function Purchases() {
 
       <p className="summary-line total">
         <span>Total</span>
-        <span>Rs. {total.toFixed(2)}</span>
+        <span>Rs. {formatAmount(total)}</span>
       </p>
       {error && <p className="error-text">{error}</p>}
       <button disabled={cart.length === 0} onClick={handleSubmit}>
@@ -212,7 +213,7 @@ export default function Purchases() {
                 <td>{p.purchaseNo}</td>
                 <td>{p.supplier?.name}</td>
                 <td>{p.items.length}</td>
-                <td>{p.totalAmount.toFixed(2)}</td>
+                <td>{formatAmount(p.totalAmount)}</td>
                 <td>{formatDate(p.createdAt)}</td>
               </tr>
             ))}

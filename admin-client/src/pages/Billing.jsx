@@ -4,6 +4,8 @@ import api from "../api/client";
 import { openInvoicePdf } from "../utils/invoicePdf";
 import ProductAutocomplete from "../components/ProductAutocomplete";
 import CustomerAutocomplete from "../components/CustomerAutocomplete";
+import NewCustomerModal from "../components/NewCustomerModal";
+import { formatAmount, roundAmount } from "../utils/formatAmount";
 
 // Mirrors DEFAULT_GST_RATE in server/src/utils/gstCalc.js — used only to preview the tax total
 // before checkout; the server always recomputes it authoritatively.
@@ -14,9 +16,11 @@ export default function Billing() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [customer, setCustomer] = useState(null);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [cart, setCart] = useState([]); // { product, quantity, unitPrice }
   const [paymentMode, setPaymentMode] = useState("cash");
   const [isInterState, setIsInterState] = useState(false);
+  const [applyTax, setApplyTax] = useState(true);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountType, setDiscountType] = useState("flat");
   const [discountValue, setDiscountValue] = useState("");
@@ -45,6 +49,7 @@ export default function Billing() {
         setCustomer(data.party || null);
         setPaymentMode(data.paymentMode);
         setIsInterState(data.isInterState);
+        setApplyTax(data.items.some((item) => item.gstRate > 0));
         setCart(
           data.items.map((item) => ({
             product: {
@@ -67,6 +72,12 @@ export default function Billing() {
       .catch(() => setLoadError("Couldn't load that invoice."))
       .finally(() => setLoadingInvoice(false));
   }, [editId]);
+
+  function handleCustomerCreated(party) {
+    setCustomers((prev) => [...prev, party]);
+    setCustomer(party);
+    setNewCustomerOpen(false);
+  }
 
   function addToCart(product) {
     setCart((prev) => {
@@ -96,23 +107,28 @@ export default function Billing() {
     setDiscountOpen(false);
     setDiscountType("flat");
     setDiscountValue("");
+    setApplyTax(true);
   }
 
-  const cartTotal = cart.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
+  // Rounded the same way as server/src/utils/gstCalc.js so the preview matches the saved invoice.
+  const cartTotal = roundAmount(cart.reduce((sum, c) => sum + roundAmount(c.quantity * roundAmount(c.unitPrice)), 0));
   const discountNumber = Number(discountValue) || 0;
   const discountPreview =
     discountNumber > 0
-      ? Math.min(cartTotal, discountType === "percent" ? (cartTotal * discountNumber) / 100 : discountNumber)
+      ? Math.min(cartTotal, roundAmount(discountType === "percent" ? (cartTotal * discountNumber) / 100 : discountNumber))
       : 0;
-  const netTotal = cartTotal - discountPreview;
-  // Walk-in sales (no customer selected) are billed tax-free, same rule the server applies.
-  const taxPreview = customer ? Math.round(netTotal * (GST_RATE_PREVIEW / 100) * 100) / 100 : 0;
-  const totalAfterTax = netTotal + taxPreview;
+  const netTotal = roundAmount(cartTotal - discountPreview);
+  const taxPreview = !applyTax
+    ? 0
+    : isInterState
+      ? roundAmount(netTotal * (GST_RATE_PREVIEW / 100))
+      : roundAmount(roundAmount(netTotal * (GST_RATE_PREVIEW / 200)) * 2);
+  const totalAfterTax = roundAmount(netTotal + taxPreview);
 
   async function handleCheckout() {
     setError("");
-    if (paymentMode === "credit" && !customer) {
-      setError("Select a customer for a credit sale");
+    if (!customer) {
+      setError("Select a customer, or add a new one");
       return;
     }
     try {
@@ -120,6 +136,7 @@ export default function Billing() {
         partyId: customer?._id || undefined,
         paymentMode,
         isInterState,
+        applyTax,
         items: cart.map((c) => ({ productId: c.product._id, quantity: c.quantity, unitPrice: c.unitPrice })),
         discountType: discountPreview > 0 ? discountType : undefined,
         discountValue: discountPreview > 0 ? discountNumber : undefined,
@@ -158,7 +175,7 @@ export default function Billing() {
       <div className="card" style={{ maxWidth: 420, margin: "3rem auto", textAlign: "center" }}>
         <h2>Invoice {invoice.invoiceNo} {editId ? "updated" : "created"}</h2>
         <p className="summary-line total" style={{ justifyContent: "center", border: "none" }}>
-          Rs. {invoice.grandTotal.toFixed(2)}
+          Rs. {formatAmount(invoice.grandTotal)}
         </p>
         <div className="actions" style={{ justifyContent: "center", marginTop: "1rem" }}>
           <button onClick={() => openInvoicePdf(invoice._id)}>View / Print PDF</button>
@@ -187,12 +204,23 @@ export default function Billing() {
     <div>
       <h2>{editId ? `Edit Invoice ${editInvoiceNo}` : "Billing / POS"}</h2>
 
+      {newCustomerOpen && (
+        <NewCustomerModal onClose={() => setNewCustomerOpen(false)} onCreated={handleCustomerCreated} />
+      )}
+
       <div className="pos-grid">
         <div>
           <div className="card">
             <label>
-              Customer (optional for cash sales)
-              <CustomerAutocomplete customers={customers} selected={customer} onSelect={setCustomer} />
+              Customer *
+              <div className="customer-row">
+                <div className="customer-row-search">
+                  <CustomerAutocomplete customers={customers} selected={customer} onSelect={setCustomer} />
+                </div>
+                <button type="button" className="secondary" onClick={() => setNewCustomerOpen(true)}>
+                  + New Customer
+                </button>
+              </div>
             </label>
 
             <div style={{ marginTop: "0.75rem" }}>
@@ -209,7 +237,7 @@ export default function Billing() {
                   <th>Qty</th>
                   <th>Rate</th>
                   <th>Amount</th>
-                  <th></th>
+                  <th className="col-action"></th>
                 </tr>
               </thead>
               <tbody>
@@ -243,10 +271,20 @@ export default function Billing() {
                         onChange={(e) => updatePrice(c.product._id, Number(e.target.value))}
                       />
                     </td>
-                    <td>{(c.quantity * c.unitPrice).toFixed(2)}</td>
-                    <td>
-                      <button className="danger" onClick={() => removeFromCart(c.product._id)}>
-                        Remove
+                    <td>{formatAmount(c.quantity * c.unitPrice)}</td>
+                    <td className="col-action">
+                      <button
+                        className="danger icon-btn"
+                        title="Remove"
+                        aria-label="Remove"
+                        onClick={() => removeFromCart(c.product._id)}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -261,11 +299,11 @@ export default function Billing() {
           <div className="summary-line">
             <span>Total (pre-tax)</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-              Rs. {cartTotal.toFixed(2)}
+              Rs. {formatAmount(cartTotal)}
               <button
                 type="button"
                 className="secondary icon-btn"
-                title={discountPreview > 0 ? `Discount: - Rs. ${discountPreview.toFixed(2)}` : "Add discount"}
+                title={discountPreview > 0 ? `Discount: - Rs. ${formatAmount(discountPreview)}` : "Add discount"}
                 style={{ padding: "0.25rem 0.4rem" }}
                 onClick={() => setDiscountOpen((o) => !o)}
               >
@@ -312,18 +350,18 @@ export default function Billing() {
           {discountPreview > 0 && (
             <div className="summary-line">
               <span>Discount</span>
-              <span>- Rs. {discountPreview.toFixed(2)}</span>
+              <span>- Rs. {formatAmount(discountPreview)}</span>
             </div>
           )}
 
           <div className="summary-line">
-            <span>{customer ? `GST (${GST_RATE_PREVIEW}%)` : "GST (walk-in, tax-free)"}</span>
-            <span>Rs. {taxPreview.toFixed(2)}</span>
+            <span>{applyTax ? `GST (${GST_RATE_PREVIEW}%)` : "GST (not applied)"}</span>
+            <span>Rs. {formatAmount(taxPreview)}</span>
           </div>
 
           <div className="summary-line total">
             <span>Total after tax</span>
-            <span>Rs. {totalAfterTax.toFixed(2)}</span>
+            <span>Rs. {formatAmount(totalAfterTax)}</span>
           </div>
 
           <label>
@@ -336,7 +374,12 @@ export default function Billing() {
             </select>
           </label>
 
-          {customer && (
+          <label style={{ flexDirection: "row", alignItems: "center", marginTop: "0.5rem" }}>
+            <input type="checkbox" checked={applyTax} onChange={(e) => setApplyTax(e.target.checked)} />{" "}
+            Add GST ({GST_RATE_PREVIEW}%)
+          </label>
+
+          {applyTax && (
             <label style={{ flexDirection: "row", alignItems: "center", marginTop: "0.5rem" }}>
               <input
                 type="checkbox"

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 // parity plus style writing, so it's used for everything here instead of pulling in both libraries.
 import XLSX from "xlsx-js-style";
 import api from "../api/client";
+import { formatAmount } from "../utils/formatAmount";
 
 const HEADER_FILL = "161124"; // matches --color-dark, the app's own table header background
 const HEADER_FONT_COLOR = "FFFFFF";
@@ -449,7 +450,7 @@ export default function BulkUploadModal({ brands, categories, onClose, onImporte
                             row.family || <span className="muted">— (uncategorized / keep existing)</span>
                           )}
                         </td>
-                        <td>{row.retailPrice ?? "—"}</td>
+                        <td>{row.retailPrice != null ? formatAmount(row.retailPrice) : "—"}</td>
                         <td>{row.currentStock ?? "—"}</td>
                         <td>
                           {row.status === "ready" && <span className="badge success-badge">Ready</span>}

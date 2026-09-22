@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
+import { formatAmount } from "../utils/formatAmount";
 import { useConfirm } from "../context/ConfirmContext";
 import Pagination from "../components/Pagination";
 
@@ -133,7 +134,7 @@ export default function Parties() {
       return;
     }
     if (amount > paymentParty.creditBalance) {
-      setPaymentError(`Cannot exceed the outstanding balance (Rs. ${paymentParty.creditBalance})`);
+      setPaymentError(`Cannot exceed the outstanding balance (Rs. ${formatAmount(paymentParty.creditBalance)})`);
       return;
     }
     try {
@@ -196,7 +197,7 @@ export default function Parties() {
                 <td>{p.pan || "—"}</td>
                 <td>
                   {p.creditBalance > 0 ? (
-                    <span className="badge orange">Rs. {p.creditBalance}</span>
+                    <span className="badge orange">Rs. {formatAmount(p.creditBalance)}</span>
                   ) : (
                     "0"
                   )}
@@ -282,7 +283,7 @@ export default function Parties() {
           <div className="modal-card" onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0 }}>Record Payment</h3>
             <p className="muted">
-              {paymentParty.name} owes <strong>Rs. {paymentParty.creditBalance}</strong>
+              {paymentParty.name} owes <strong>Rs. {formatAmount(paymentParty.creditBalance)}</strong>
             </p>
             <form onSubmit={submitPayment}>
               <label>

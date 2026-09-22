@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/client";
+import { formatAmount } from "../utils/formatAmount";
 import { useConfirm } from "../context/ConfirmContext";
 import Pagination from "../components/Pagination";
 import BulkUploadModal from "../components/BulkUploadModal";
@@ -224,7 +225,7 @@ export default function Products() {
                 <td>{p.brand}</td>
                 <td>{p.hsnCode || "—"}</td>
                 <td>{p.currentStock}</td>
-                <td>{p.retailPrice}</td>
+                <td>{formatAmount(p.retailPrice)}</td>
                 <td className="col-actions">
                   <div className="actions" style={{ flexWrap: "nowrap", justifyContent: "flex-end" }}>
                     <button className="secondary icon-btn" title="View details" onClick={() => setViewProduct(p)}>
@@ -430,15 +431,15 @@ export default function Products() {
             <div className="price-cards">
               <div className="price-card">
                 <span className="detail-label">Cost Price</span>
-                <span className="price-value">Rs. {viewProduct.costPrice}</span>
+                <span className="price-value">Rs. {formatAmount(viewProduct.costPrice)}</span>
               </div>
               <div className="price-card highlight">
                 <span className="detail-label">Retail Price</span>
-                <span className="price-value">Rs. {viewProduct.retailPrice}</span>
+                <span className="price-value">Rs. {formatAmount(viewProduct.retailPrice)}</span>
               </div>
               <div className="price-card">
                 <span className="detail-label">Wholesale Price</span>
-                <span className="price-value">Rs. {viewProduct.wholesalePrice}</span>
+                <span className="price-value">Rs. {formatAmount(viewProduct.wholesalePrice)}</span>
               </div>
             </div>
 

@@ -2,6 +2,8 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { company } from "../config/company.js";
+import { roundAmount, AMOUNT_DECIMALS } from "./money.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGO_PATH = path.join(__dirname, "..", "assets", "logo.png");
@@ -30,7 +32,7 @@ function formatDate(date) {
 }
 
 function money(n) {
-  return Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return roundAmount(n).toLocaleString("en-IN", { maximumFractionDigits: AMOUNT_DECIMALS });
 }
 
 // Streams an A4 tax-invoice PDF directly to the given writable stream (e.g. an HTTP response).
@@ -38,8 +40,8 @@ export function streamInvoicePdf(invoice, party, res) {
   const doc = new PDFDocument({ margin: 40, size: "A4" });
   doc.pipe(res);
 
-  const companyName = process.env.COMPANY_NAME || "Your Company Name";
-  const tagline = process.env.COMPANY_TAGLINE || "Genuine bearings & industrial parts";
+  const companyName = company.name;
+  const tagline = company.tagline;
   const left = 40;
   const right = doc.page.width - 40;
   const contentWidth = right - left;
@@ -84,7 +86,7 @@ export function streamInvoicePdf(invoice, party, res) {
     return stampHeight;
   }
 
-  // ---- Header banner: full page width, light panel + diagonal navy "TAX INVOICE" panel ----
+  // ---- Header banner: full page width, light panel + diagonal navy title panel ----
   const pageWidth = doc.page.width;
   const BANNER_HEIGHT = 130;
   const BANNER_BG = "#f2f3f6";
@@ -200,14 +202,20 @@ export function streamInvoicePdf(invoice, party, res) {
     bulletX += 15 + labelWidth + 14;
   });
 
-  // TAX INVOICE + invoice number, white on the navy panel.
+  // Document title + invoice number, white on the navy panel. Under GST, a bill with no tax
+  // charged is a "Bill of Supply" rather than a "Tax Invoice".
   const navyTextX = navyTopX + 14;
   const navyTextWidth = pageWidth - navyTextX - 20;
+  const isTaxed = (invoice.items[0]?.gstRate ?? 0) > 0;
+  const docTitle = isTaxed ? "TAX INVOICE" : "BILL OF SUPPLY";
+  let titleSize = 17;
+  doc.font("Helvetica-Bold").fontSize(titleSize);
+  while (titleSize > 11 && doc.widthOfString(docTitle) > navyTextWidth) {
+    doc.fontSize(--titleSize);
+  }
   doc
-    .font("Helvetica-Bold")
-    .fontSize(17)
     .fillColor("#fff")
-    .text("TAX INVOICE", navyTextX, 46, { width: navyTextWidth, lineBreak: false });
+    .text(docTitle, navyTextX, 46, { width: navyTextWidth, lineBreak: false });
   doc
     .moveTo(navyTextX, doc.y + 4)
     .lineTo(navyTextX + Math.min(navyTextWidth, 90), doc.y + 4)
@@ -255,10 +263,10 @@ export function streamInvoicePdf(invoice, party, res) {
     colWidth,
     "Bill From",
     companyName,
-    process.env.COMPANY_ADDRESS,
-    process.env.COMPANY_GSTIN,
-    process.env.COMPANY_PAN,
-    process.env.COMPANY_PHONE
+    company.address,
+    company.gstin,
+    company.pan,
+    company.phone
   );
   const toEndY = renderParty(
     colRightX,
@@ -375,7 +383,9 @@ export function streamInvoicePdf(invoice, party, res) {
   let rowY = drawTableHeaderRow(tableTop);
 
   invoice.items.forEach((item, idx) => {
-    const itemLabel = item.brand ? `${item.bearingNumber} (${item.brand})` : item.bearingNumber;
+    // "Generic" is the default placeholder brand, so it's left off the invoice.
+    const showBrand = item.brand && item.brand.trim().toLowerCase() !== "generic";
+    const itemLabel = showBrand ? `${item.bearingNumber} (${item.brand})` : item.bearingNumber;
     const itemHeight = doc.heightOfString(itemLabel, { width: cols[1].width - 8 });
     const rowHeight = Math.max(20, itemHeight + 8);
 
@@ -451,9 +461,10 @@ export function streamInvoicePdf(invoice, party, res) {
       .text(`${label}: - Rs. ${money(invoice.discountAmount)}`, left, doc.y, { width: contentWidth, align: "right" });
     doc.moveDown(0.3);
   }
-  if (invoice.isInterState) {
+  // No tax lines at all when GST wasn't applied to this invoice.
+  if (gstRate > 0 && invoice.isInterState) {
     totalsLine(`IGST ${gstRate}%`, invoice.igst);
-  } else {
+  } else if (gstRate > 0) {
     totalsLine(`CGST ${gstRate / 2}%`, invoice.cgst);
     totalsLine(`SGST ${gstRate / 2}%`, invoice.sgst);
   }
@@ -467,17 +478,18 @@ export function streamInvoicePdf(invoice, party, res) {
   y = doc.y + 24;
 
   // ---- Banking details (optional) + signature ----
-  const bankName = process.env.COMPANY_BANK_NAME;
+  const bankName = company.bank.name;
   if (bankName) {
     doc.font("Helvetica-Bold").fontSize(9).fillColor(BRAND_DARK).text("Banking Details for Wire Transfer", left, y);
     y = doc.y + 6;
 
     const bankRows = [
-      ["Beneficiary Name", process.env.COMPANY_BENEFICIARY_NAME || companyName],
+      ["Beneficiary Name", company.bank.beneficiaryName || companyName],
       ["Bank Name", bankName],
-      ["Account Number", process.env.COMPANY_BANK_ACCOUNT || "-"],
-      ["IFSC Code", process.env.COMPANY_BANK_IFSC || "-"],
-      ["Bank Address", process.env.COMPANY_BANK_ADDRESS || "-"],
+      ["Account Number", company.bank.account || "-"],
+      ["IFSC Code", company.bank.ifsc || "-"],
+      ["UPI ID", company.bank.upi || "-"],
+      ["Bank Address", company.bank.address || "-"],
     ];
     const bankBoxWidth = contentWidth * 0.6;
     const bankRowH = 16;

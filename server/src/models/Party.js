@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { money } from "../utils/money.js";
 
 const partySchema = new mongoose.Schema(
   {
@@ -8,7 +9,7 @@ const partySchema = new mongoose.Schema(
     gstin: { type: String, trim: true, uppercase: true },
     pan: { type: String, trim: true, uppercase: true },
     address: { type: String, trim: true },
-    creditBalance: { type: Number, default: 0 }, // positive = they owe us (customer) or we owe supplier
+    creditBalance: { ...money, default: 0 }, // positive = they owe us (customer) or we owe supplier
   },
   { timestamps: true }
 );

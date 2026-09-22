@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { money } from "../utils/money.js";
 
 const productSchema = new mongoose.Schema(
   {
@@ -13,9 +14,9 @@ const productSchema = new mongoose.Schema(
     hsnCode: { type: String, trim: true, default: "8482" }, // 8482 = ball/roller bearings under GST
 
     unit: { type: String, enum: ["piece", "box", "set"], default: "piece" },
-    costPrice: { type: Number, default: 0 },
-    retailPrice: { type: Number, default: 0 },
-    wholesalePrice: { type: Number, default: 0 },
+    costPrice: { ...money, default: 0 },
+    retailPrice: { ...money, default: 0 },
+    wholesalePrice: { ...money, default: 0 },
 
     currentStock: { type: Number, default: 0 },
     reorderLevel: { type: Number, default: 5 },

@@ -960,10 +960,15 @@ tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem 0.85rem;
+  /* Slim padding so the box (with its "Change" button) stays the same height as the search input */
+  padding: 0.25rem 0.25rem 0.25rem 0.7rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.selected-customer button {
+  padding: 0.3rem 0.75rem;
 }
 
 .selected-customer .info {
@@ -987,8 +992,34 @@ tbody tr:hover {
   padding-top: 0.6rem;
 }
 
+/* Billing: customer search with the "+ New Customer" button to its right */
+.customer-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.customer-row-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-row > button {
+  white-space: nowrap;
+}
+
+/* Shrinks a table column to its content (e.g. a single icon button) so the other columns
+   get the leftover width. */
+th.col-action,
+td.col-action {
+  width: 1%;
+  white-space: nowrap;
+  padding-left: 0.4rem;
+  padding-right: 0.6rem;
+}
+
 .qty-input {
-  width: 56px !important;
+  width: 84px !important;
 }
 
 .price-input {
