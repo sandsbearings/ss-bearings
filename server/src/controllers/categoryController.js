@@ -1,12 +1,13 @@
 import asyncHandler from "express-async-handler";
 import Category from "../models/Category.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { searchRegex } from "../utils/searchRegex.js";
 
 // GET /api/categories?search=&page=&limit=  (paginated, for the Categories admin list)
 export const listCategories = asyncHandler(async (req, res) => {
   const { search } = req.query;
   const query = {};
-  if (search) query.name = new RegExp(search, "i");
+  if (search) query.name = searchRegex(search);
 
   const { page, limit, skip } = getPagination(req.query);
   const [categories, total] = await Promise.all([

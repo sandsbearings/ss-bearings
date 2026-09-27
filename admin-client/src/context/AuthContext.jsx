@@ -20,13 +20,29 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Only one login is allowed at a time, so a login elsewhere ends this one. Check now and then
+  // (and when the window comes back into focus) so an idle screen notices too; a failed check
+  // sends it to the login page (see api/client.js).
+  useEffect(() => {
+    if (!user) return undefined;
+    const check = () => api.get("/auth/me").catch(() => {});
+    const interval = setInterval(check, 60 * 1000);
+    window.addEventListener("focus", check);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", check);
+    };
+  }, [user]);
+
   async function login(email, password) {
     const res = await api.post("/auth/login", { email, password });
     localStorage.setItem("token", res.data.token);
     setUser(res.data);
   }
 
+  // Tells the server too, so this login can't be reused; logs out locally even if that fails.
   function logout() {
+    api.post("/auth/logout").catch(() => {});
     localStorage.removeItem("token");
     setUser(null);
   }

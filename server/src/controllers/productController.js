@@ -4,6 +4,7 @@ import StockMovement from "../models/StockMovement.js";
 import Brand from "../models/Brand.js";
 import Category from "../models/Category.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { searchRegex } from "../utils/searchRegex.js";
 
 const MAX_BULK_ROWS = 500;
 
@@ -21,8 +22,8 @@ export const listProducts = asyncHandler(async (req, res) => {
 
   if (search) {
     query.$or = [
-      { bearingNumber: new RegExp(search, "i") },
-      { crossRefNumbers: new RegExp(search, "i") },
+      { bearingNumber: searchRegex(search) },
+      { crossRefNumbers: searchRegex(search) },
     ];
   }
   if (lowStock === "true") {

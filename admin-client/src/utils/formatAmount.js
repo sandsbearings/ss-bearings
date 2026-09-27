@@ -14,3 +14,8 @@ export function roundAmount(n) {
 export function formatAmount(n) {
   return String(roundAmount(n));
 }
+
+// With the rupee sign and Indian digit grouping: 125000 -> "₹1,25,000"
+export function formatRupees(n) {
+  return `₹${roundAmount(n).toLocaleString("en-IN", { maximumFractionDigits: AMOUNT_DECIMALS })}`;
+}

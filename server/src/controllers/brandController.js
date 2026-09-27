@@ -1,12 +1,13 @@
 import asyncHandler from "express-async-handler";
 import Brand from "../models/Brand.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { searchRegex } from "../utils/searchRegex.js";
 
 // GET /api/brands?search=&page=&limit=  (paginated, for the Brands admin list)
 export const listBrands = asyncHandler(async (req, res) => {
   const { search } = req.query;
   const query = {};
-  if (search) query.name = new RegExp(search, "i");
+  if (search) query.name = searchRegex(search);
 
   const { page, limit, skip } = getPagination(req.query);
   const [brands, total] = await Promise.all([

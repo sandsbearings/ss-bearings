@@ -6,6 +6,9 @@ import ProductAutocomplete from "../components/ProductAutocomplete";
 import CustomerAutocomplete from "../components/CustomerAutocomplete";
 import NewCustomerModal from "../components/NewCustomerModal";
 import { formatAmount, roundAmount } from "../utils/formatAmount";
+import { useConfirm } from "../context/ConfirmContext";
+import { paymentModeLabel } from "../utils/paymentLabels";
+import { formatDate } from "../utils/formatDate";
 
 // Mirrors DEFAULT_GST_RATE in server/src/utils/gstCalc.js — used only to preview the tax total
 // before checkout; the server always recomputes it authoritatively.
@@ -14,6 +17,7 @@ const GST_RATE_PREVIEW = 18;
 export default function Billing() {
   const { id: editId } = useParams();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [customers, setCustomers] = useState([]);
   const [customer, setCustomer] = useState(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
@@ -27,6 +31,8 @@ export default function Billing() {
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState("");
   const [editInvoiceNo, setEditInvoiceNo] = useState("");
+  const [original, setOriginal] = useState(null); // edit mode: the bill's customer/dues when loaded
+  const [saving, setSaving] = useState(false); // bill being saved: screen blocked
   const [loadingInvoice, setLoadingInvoice] = useState(!!editId);
   const [loadError, setLoadError] = useState("");
 
@@ -45,8 +51,21 @@ export default function Billing() {
           setLoadError("This invoice has been voided and can't be edited.");
           return;
         }
+        if (data.gstLocked) {
+          setLoadError(
+            `${data.invoiceNo} is a tax bill from an earlier month. Tax bills can only be edited in the month they were made. A correction needs a credit note — please check with your CA.`
+          );
+          return;
+        }
         setEditInvoiceNo(data.invoiceNo);
         setCustomer(data.party || null);
+        setOriginal({
+          party: data.party || null,
+          paymentMode: data.paymentMode,
+          createdAt: data.createdAt,
+          due: roundAmount(data.grandTotal - data.amountPaid),
+          receiptsPaid: data.receiptsPaid || 0,
+        });
         setPaymentMode(data.paymentMode);
         setIsInterState(data.isInterState);
         setApplyTax(data.items.some((item) => item.gstRate > 0));
@@ -125,12 +144,145 @@ export default function Billing() {
       : roundAmount(roundAmount(netTotal * (GST_RATE_PREVIEW / 200)) * 2);
   const totalAfterTax = roundAmount(netTotal + taxPreview);
 
+  // Asks before a new bill is saved: for cash/UPI/card, that the money has actually been received;
+  // for credit, how much this adds to what the customer owes.
+  async function confirmCheckout() {
+    const total = `Rs. ${formatAmount(totalAfterTax)}`;
+
+    if (paymentMode !== "credit") {
+      return confirm({
+        title: "Payment received?",
+        message: (
+          <>
+            Confirm you have received <strong>{total}</strong> by <strong>{paymentModeLabel(paymentMode)}</strong>{" "}
+            from <strong>{customer.name}</strong>. The bill will be marked as paid.
+          </>
+        ),
+        confirmLabel: "Received, Generate Invoice",
+        danger: false,
+      });
+    }
+
+    // Fresh balance, since the customer list was loaded when the page opened.
+    let before = customer.creditBalance || 0;
+    try {
+      before = (await api.get(`/parties/${customer._id}`)).data.creditBalance || 0;
+    } catch {
+      // keep the list's value
+    }
+    before = roundAmount(before);
+    const after = roundAmount(before + totalAfterTax);
+
+    return confirm({
+      title: "Generate credit bill?",
+      message: (
+        <>
+          No payment is collected now. <strong>{total}</strong> will be added to <strong>{customer.name}</strong>'s
+          credit.
+          <br />
+          {before > 0 && <>They already owe Rs. {formatAmount(before)}. </>}
+          {before < 0 && <>Their advance of Rs. {formatAmount(-before)} will be used first. </>}
+          {after > 0 ? (
+            <>
+              After this bill they will owe <strong>Rs. {formatAmount(after)}</strong>.
+            </>
+          ) : (
+            <>After this bill they will still have Rs. {formatAmount(-after)} advance left.</>
+          )}
+        </>
+      ),
+      confirmLabel: "Yes, Generate on Credit",
+      danger: false,
+    });
+  }
+
+  // Edit mode: a credit bill switched to Cash/UPI/Card counts the money as received on the bill's
+  // own date, not today — so it's missing from today's Payments Received and changes a past day's
+  // total. Receive Payment records it on the day it actually came in.
+  async function confirmCreditToPaid() {
+    if (original?.paymentMode !== "credit" || paymentMode === "credit") return true;
+    return confirm({
+      title: "Customer paying for this bill now?",
+      message: (
+        <>
+          If the customer is paying now, cancel this and use <strong>Receive Payment</strong> (on the Invoices or
+          Parties page) instead. That records the money on today&apos;s date.
+          <br />
+          <br />
+          Changing the bill to <strong>{paymentModeLabel(paymentMode)}</strong> counts the money as received on the
+          bill&apos;s own date (<strong>{formatDate(original.createdAt)}</strong>), so it won&apos;t show in
+          today&apos;s Payments Received. Only do this if the bill was entered as Credit by mistake.
+        </>
+      ),
+      confirmLabel: "It was a mistake, change it",
+      danger: false,
+    });
+  }
+
+  // Edit mode: warns when the bill is being moved to a different customer, spelling out what
+  // happens to each customer's balance (see updateInvoice on the server).
+  async function confirmCustomerChange() {
+    const from = original?.party;
+    if (!from || from._id === customer._id) return true;
+
+    const onCredit = paymentMode === "credit";
+    const newTotal = `Rs. ${formatAmount(totalAfterTax)}`;
+
+    return confirm({
+      title: "Change customer?",
+      message: (
+        <>
+          Bill <strong>{editInvoiceNo}</strong> will move from <strong>{from.name}</strong> to{" "}
+          <strong>{customer.name}</strong>.
+          <br />
+          <br />
+          {original.receiptsPaid > 0 && (
+            <>
+              ⚠ {from.name} has already paid <strong>Rs. {formatAmount(original.receiptsPaid)}</strong> on this
+              bill. That money stays with {from.name}: it goes to their other unpaid bills, or is kept as
+              their advance.
+              <br />
+              <br />
+            </>
+          )}
+          {original.receiptsPaid === 0 && original.due > 0 && (
+            <>
+              Rs. {formatAmount(original.due)} still due on this bill will be removed from {from.name}'s balance.
+              <br />
+            </>
+          )}
+          {onCredit ? (
+            <>
+              {customer.name} will owe <strong>{newTotal}</strong> for this bill (their advance, if any, is used
+              first).
+            </>
+          ) : (
+            <>
+              The bill is marked paid by {paymentModeLabel(paymentMode)} ({newTotal}), so {customer.name} won't owe
+              anything for it.
+            </>
+          )}
+        </>
+      ),
+      confirmLabel: "Yes, Change Customer",
+      danger: original.receiptsPaid > 0,
+    });
+  }
+
   async function handleCheckout() {
     setError("");
     if (!customer) {
       setError("Select a customer, or add a new one");
       return;
     }
+    const ok = editId
+      ? (await confirmCreditToPaid()) && (await confirmCustomerChange())
+      : await confirmCheckout();
+    if (!ok || saving) return;
+    // Block the whole screen until the server answers, so nothing can be changed or clicked
+    // twice mid-save. Taking focus off the button also stops Enter/Space from re-submitting.
+    document.activeElement?.blur();
+    setSaving(true);
     try {
       const payload = {
         partyId: customer?._id || undefined,
@@ -152,6 +304,8 @@ export default function Billing() {
       }
     } catch (err) {
       setError(err.response?.data?.message || "Checkout failed");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -202,6 +356,15 @@ export default function Billing() {
 
   return (
     <div>
+      {saving && (
+        <div className="page-loading-overlay" role="alertdialog" aria-busy="true" aria-label="Saving bill">
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+            <div className="spinner" />
+            <strong>{editId ? "Updating invoice..." : "Generating invoice..."}</strong>
+            <span className="muted">Please wait, don&apos;t close or refresh this page.</span>
+          </div>
+        </div>
+      )}
       <h2>{editId ? `Edit Invoice ${editInvoiceNo}` : "Billing / POS"}</h2>
 
       {newCustomerOpen && (
@@ -375,9 +538,19 @@ export default function Billing() {
           </label>
 
           <label style={{ flexDirection: "row", alignItems: "center", marginTop: "0.5rem" }}>
-            <input type="checkbox" checked={applyTax} onChange={(e) => setApplyTax(e.target.checked)} />{" "}
+            <input
+              type="checkbox"
+              checked={applyTax}
+              disabled={!!editId}
+              onChange={(e) => setApplyTax(e.target.checked)}
+            />{" "}
             Add GST ({GST_RATE_PREVIEW}%)
           </label>
+          {editId && (
+            <p className="muted" style={{ margin: "0.25rem 0 0" }}>
+              GST can't be changed on an existing bill — void it and create a new one instead.
+            </p>
+          )}
 
           {applyTax && (
             <label style={{ flexDirection: "row", alignItems: "center", marginTop: "0.5rem" }}>
@@ -393,7 +566,7 @@ export default function Billing() {
           {error && <p className="error-text">{error}</p>}
 
           <button
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || saving}
             onClick={handleCheckout}
             style={{ width: "100%", marginTop: "0.75rem" }}
           >

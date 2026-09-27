@@ -1,13 +1,14 @@
 import asyncHandler from "express-async-handler";
 import User from "../models/User.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { searchRegex } from "../utils/searchRegex.js";
 
 // GET /api/users?search=&page=&limit=
 export const listUsers = asyncHandler(async (req, res) => {
   const { search } = req.query;
   const query = {};
   if (search) {
-    query.$or = [{ name: new RegExp(search, "i") }, { email: new RegExp(search, "i") }];
+    query.$or = [{ name: searchRegex(search) }, { email: searchRegex(search) }];
   }
 
   const { page, limit, skip } = getPagination(req.query);

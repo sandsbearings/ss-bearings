@@ -6,7 +6,6 @@ const SETTINGS_LINKS = [
   { to: "/users", label: "Users", adminOnly: true },
   { to: "/categories", label: "Categories", adminOnly: true },
   { to: "/brands", label: "Brands", adminOnly: true },
-  { to: "/parties", label: "Parties", adminOnly: false },
 ];
 
 function getInitials(name) {
@@ -61,11 +60,10 @@ export default function Layout() {
         <NavLink to="/invoices" className={({ isActive }) => (isActive ? "active" : "")}>
           Invoices
         </NavLink>
-        {user?.role === "admin" && (
-          <NavLink to="/purchases" className={({ isActive }) => (isActive ? "active" : "")}>
-            Purchases
-          </NavLink>
-        )}
+        {/* Purchases is hidden for now (route removed in App.jsx); Parties takes its place. */}
+        <NavLink to="/parties" className={({ isActive }) => (isActive ? "active" : "")}>
+          Parties
+        </NavLink>
         {user?.role === "admin" && (
           <NavLink to="/reports" className={({ isActive }) => (isActive ? "active" : "")}>
             Reports

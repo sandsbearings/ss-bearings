@@ -21,6 +21,16 @@ const invoiceSchema = new mongoose.Schema(
   {
     invoiceNo: { type: String, required: true, unique: true },
     party: { type: mongoose.Schema.Types.ObjectId, ref: "Party" }, // null = walk-in customer
+    // The customer's details as they were when the bill was made (or last edited), so a later
+    // change to the customer (e.g. adding a GSTIN) doesn't alter old bills, their PDF, or which
+    // GST section (B2B/B2C) they fall in. Older bills without it fall back to the customer record.
+    billedTo: {
+      name: String,
+      phone: String,
+      gstin: String,
+      pan: String,
+      address: String,
+    },
     items: [invoiceItemSchema],
 
     isInterState: { type: Boolean, default: false }, // true => IGST, false => CGST+SGST

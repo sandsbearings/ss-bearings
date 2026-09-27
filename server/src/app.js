@@ -11,6 +11,8 @@ import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import brandRoutes from "./routes/brandRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import reportsPinRoutes from "./routes/reportsPinRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
@@ -31,6 +33,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/reports-pin", reportsPinRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

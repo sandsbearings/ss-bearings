@@ -5,6 +5,7 @@ import StockMovement from "../models/StockMovement.js";
 import { nextSequence } from "../models/Counter.js";
 import Party from "../models/Party.js";
 import { getPagination, buildPage } from "../utils/paginate.js";
+import { searchRegex } from "../utils/searchRegex.js";
 import { roundAmount } from "../utils/money.js";
 
 // POST /api/purchases
@@ -52,9 +53,9 @@ export const listPurchases = asyncHandler(async (req, res) => {
   const query = {};
 
   if (search) {
-    const matchingSuppliers = await Party.find({ name: new RegExp(search, "i") }).select("_id");
+    const matchingSuppliers = await Party.find({ name: searchRegex(search) }).select("_id");
     query.$or = [
-      { purchaseNo: new RegExp(search, "i") },
+      { purchaseNo: searchRegex(search) },
       { supplier: { $in: matchingSuppliers.map((p) => p._id) } },
     ];
   }

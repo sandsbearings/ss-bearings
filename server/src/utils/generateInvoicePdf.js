@@ -4,6 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { company } from "../config/company.js";
 import { roundAmount, AMOUNT_DECIMALS } from "./money.js";
+import { formatIstDate } from "./indiaTime.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGO_PATH = path.join(__dirname, "..", "assets", "logo.png");
@@ -23,13 +24,6 @@ const BRAND_ORANGE = "#f58027";
 const TEXT_MUTED = "#6b6577";
 const BORDER = "#d8d5df";
 const ROW_SHADE = "#f6f5f9";
-
-function formatDate(date) {
-  const d = new Date(date);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
 
 function money(n) {
   return roundAmount(n).toLocaleString("en-IN", { maximumFractionDigits: AMOUNT_DECIMALS });
@@ -285,9 +279,12 @@ export function streamInvoicePdf(invoice, party, res) {
 
   // ---- Meta box: invoice date | invoice no | payment mode, all in one row ----
   const metaCols = [
-    ["Invoice Date", formatDate(invoice.createdAt)],
+    ["Invoice Date", formatIstDate(invoice.createdAt)],
     ["Invoice No #", invoice.invoiceNo],
-    ["Payment Mode", `${invoice.paymentMode.toUpperCase()} (${invoice.paymentStatus})`],
+    [
+      "Payment Mode",
+      `${invoice.paymentMode.toUpperCase()} (${invoice.paymentStatus === "credit" ? "unpaid" : invoice.paymentStatus})`,
+    ],
   ];
   const metaColWidth = contentWidth / metaCols.length;
   const metaPad = 10;

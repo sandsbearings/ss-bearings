@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { company } from "../config/company.js";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -8,6 +9,14 @@ const transporter = nodemailer.createTransport({
   family: 4,
 });
 
-export async function sendEmail({ to, subject, html }) {
-  await transporter.sendMail({ from: process.env.GMAIL_USER, to, subject, html });
+// Sent from the shop's name (not a bare address), with a plain-text copy alongside the HTML —
+// both make it less likely to land in spam.
+export async function sendEmail({ to, subject, html, text }) {
+  await transporter.sendMail({
+    from: { name: company.name, address: process.env.GMAIL_USER },
+    to,
+    subject,
+    html,
+    text,
+  });
 }

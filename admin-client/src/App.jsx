@@ -9,8 +9,8 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Billing from "./pages/Billing";
 import Invoices from "./pages/Invoices";
-import Purchases from "./pages/Purchases";
 import Parties from "./pages/Parties";
+import PartyStatement from "./pages/PartyStatement";
 import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
@@ -22,6 +22,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
@@ -30,9 +31,11 @@ export default function App() {
           <Route path="/billing" element={<Billing />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/parties" element={<Parties />} />
+          <Route path="/parties/:id/statement" element={<PartyStatement />} />
           <Route element={<ProtectedRoute roles={["admin"]} />}>
             <Route path="/billing/edit/:id" element={<Billing />} />
-            <Route path="/purchases" element={<Purchases />} />
+            {/* Purchases is hidden for now. To bring it back: re-add this route
+                (<Route path="/purchases" element={<Purchases />} /> + its import) and the nav link in Layout.jsx. */}
             <Route path="/reports" element={<Reports />} />
             <Route path="/users" element={<Users />} />
             <Route path="/categories" element={<Categories />} />
