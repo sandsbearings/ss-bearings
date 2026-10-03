@@ -1,30 +1,34 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
+import { useConfirm } from "../context/ConfirmContext";
+import { saveParty } from "../utils/partyDuplicates";
 
 const emptyForm = { name: "", phone: "", gstin: "", pan: "", address: "" };
 
 // Quick "add customer" dialog used from Billing — creates a customer party and hands the saved
 // record back via onCreated so the caller can select it straight away.
 export default function NewCustomerModal({ onClose, onCreated }) {
+  const confirm = useConfirm();
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === "Escape") onClose();
+      // While saving, Esc belongs to the duplicate warning (if shown), not this dialog.
+      if (e.key === "Escape" && !saving) onClose();
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [onClose, saving]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSaving(true);
     try {
-      const res = await api.post("/parties", { ...form, type: "customer" });
-      onCreated(res.data);
+      const res = await saveParty((extra) => api.post("/parties", { ...form, type: "customer", ...extra }), confirm);
+      if (res) onCreated(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save customer");
     } finally {

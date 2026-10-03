@@ -64,8 +64,82 @@ export const getParty = asyncHandler(async (req, res) => {
 // is now a customer (suppliers were only for the hidden Purchases page). The price type has its own
 // admin-only endpoint (setPriceType), so it's stripped too.
 function partyFields(body) {
-  const { creditBalance, openingBalance, openingPaid, type, priceType, ...fields } = body;
+  const { creditBalance, openingBalance, openingPaid, type, priceType, allowDuplicates, ...fields } = body;
+  // GSTIN/PAN are saved without spaces so "09ABCDE 1234F1Z5" and "09ABCDE1234F1Z5" are the same.
+  if (fields.gstin !== undefined) fields.gstin = cleanId(fields.gstin);
+  if (fields.pan !== undefined) fields.pan = cleanId(fields.pan);
   return fields;
+}
+
+// ---- Duplicate customer check ----
+// GSTIN: one business = one GSTIN, so a second customer with the same GSTIN is refused.
+// PAN / mobile: can legitimately be shared (branches in other states, family/shop numbers), so a
+// match only warns: the save is answered with 409 PARTY_DUPLICATE and the matching customers, and
+// the app asks the user, then sends the same request again with allowDuplicates: true.
+// Only values that are being added or changed are checked, so an old duplicate never blocks an
+// unrelated edit (e.g. fixing the address).
+
+function cleanId(value) {
+  return String(value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+// Last 10 digits, so "+91 98765-43210" and "9876543210" are the same number.
+function phoneDigits(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+// Matches a saved phone with the same digits at the end, whatever spaces/dashes/+91 it was typed with.
+function phoneQuery(digits) {
+  return new RegExp(`${digits.split("").join("\\D*")}$`);
+}
+
+// Returns true when it has already answered the request (a 409 warning).
+async function checkDuplicates(req, res, fields, existing) {
+  const notMe = existing ? { _id: { $ne: existing._id } } : {};
+  const changed = (key, norm) => fields[key] !== undefined && (!existing || norm(existing[key]) !== norm(fields[key]));
+
+  if (fields.gstin && changed("gstin", cleanId)) {
+    const other = await Party.findOne({ ...notMe, gstin: fields.gstin }).select("name");
+    if (other) {
+      res.status(400);
+      throw new Error(`GSTIN ${fields.gstin} is already used by ${other.name}`);
+    }
+  }
+
+  if (req.body.allowDuplicates === true) return false;
+
+  const matches = new Map(); // party id -> { party, on: ["PAN", "mobile"] }
+  function add(list, on) {
+    for (const party of list) {
+      const key = party._id.toString();
+      if (!matches.has(key)) matches.set(key, { party, on: [] });
+      matches.get(key).on.push(on);
+    }
+  }
+
+  if (fields.pan && changed("pan", cleanId)) {
+    add(await Party.find({ ...notMe, pan: fields.pan }).select("name phone pan gstin").limit(5), "PAN");
+  }
+  const digits = phoneDigits(fields.phone);
+  if (digits.length >= 6 && changed("phone", phoneDigits)) {
+    add(await Party.find({ ...notMe, phone: phoneQuery(digits) }).select("name phone pan gstin").limit(5), "mobile");
+  }
+  if (!matches.size) return false;
+
+  res.status(409).json({
+    code: "PARTY_DUPLICATE",
+    message: "Another customer has the same PAN or mobile number",
+    matches: [...matches.values()].map(({ party, on }) => ({
+      _id: party._id,
+      name: party.name,
+      phone: party.phone,
+      pan: party.pan,
+      gstin: party.gstin,
+      matchedOn: on,
+    })),
+  });
+  return true;
 }
 
 // PUT /api/parties/:id/price-type   body: { priceType: "retail" | "wholesale" }  (admin only)
@@ -90,19 +164,25 @@ export const setPriceType = asyncHandler(async (req, res) => {
 
 // New parties are always customers and start at a zero balance; only bills and payments change it.
 export const createParty = asyncHandler(async (req, res) => {
-  const party = await Party.create({ ...partyFields(req.body), type: "customer" });
+  const fields = partyFields(req.body);
+  if (await checkDuplicates(req, res, fields, null)) return;
+  const party = await Party.create({ ...fields, type: "customer" });
   res.status(201).json(party);
 });
 
 export const updateParty = asyncHandler(async (req, res) => {
-  const party = await Party.findByIdAndUpdate(req.params.id, partyFields(req.body), {
-    new: true,
-    runValidators: true,
-  });
-  if (!party) {
+  const existing = await Party.findById(req.params.id);
+  if (!existing) {
     res.status(404);
     throw new Error("Party not found");
   }
+  const fields = partyFields(req.body);
+  if (await checkDuplicates(req, res, fields, existing)) return;
+
+  const party = await Party.findByIdAndUpdate(req.params.id, fields, {
+    new: true,
+    runValidators: true,
+  });
   res.json(party);
 });
 

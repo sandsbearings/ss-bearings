@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { formatAmount, roundAmount } from "../utils/formatAmount";
@@ -7,6 +7,7 @@ import Pagination from "../components/Pagination";
 import ReceivePaymentModal from "../components/ReceivePaymentModal";
 import { formatDate } from "../utils/formatDate";
 import { downloadCsv } from "../utils/csv";
+import { saveParty } from "../utils/partyDuplicates";
 
 // `balance` is rounded first, so a leftover like -0.0000000000002 shows as 0, not "Advance Rs. 0".
 function BalanceBadge({ balance }) {
@@ -31,6 +32,7 @@ export default function Parties() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [paymentParty, setPaymentParty] = useState(null);
+  const savingRef = useRef(false); // true while a save (and any duplicate warning) is in progress
   const [gstinFilter, setGstinFilter] = useState("");
   const [exporting, setExporting] = useState(false);
 
@@ -100,7 +102,8 @@ export default function Parties() {
   useEffect(() => {
     if (!formOpen) return;
     function handleKey(e) {
-      if (e.key === "Escape") closeForm();
+      // While saving, Esc belongs to the duplicate warning (if shown), not the form behind it.
+      if (e.key === "Escape" && !savingRef.current) closeForm();
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -136,16 +139,20 @@ export default function Parties() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    savingRef.current = true;
     try {
-      if (editingId) {
-        await api.put(`/parties/${editingId}`, form);
-      } else {
-        await api.post("/parties", form);
-      }
+      const res = await saveParty(
+        (extra) =>
+          editingId ? api.put(`/parties/${editingId}`, { ...form, ...extra }) : api.post("/parties", { ...form, ...extra }),
+        confirm
+      );
+      if (!res) return; // chose not to save a possible duplicate: keep the form open
       closeForm();
       loadParties(search, page);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save party");
+    } finally {
+      savingRef.current = false;
     }
   }
 

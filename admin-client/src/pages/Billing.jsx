@@ -85,6 +85,16 @@ export default function Billing() {
           createdAt: data.createdAt,
           due: roundAmount(data.grandTotal - data.amountPaid),
           receiptsPaid: data.receiptsPaid || 0,
+          // For the "save changes?" summary (confirmEditChanges)
+          isInterState: data.isInterState,
+          discount: data.discountAmount > 0 ? { type: data.discountType || "flat", value: Number(data.discountValue) } : null,
+          grandTotal: data.grandTotal,
+          items: data.items.map((item) => ({
+            productId: String(item.product),
+            bearingNumber: item.bearingNumber,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          })),
         });
         setPaymentMode(data.paymentMode);
         setIsInterState(data.isInterState);
@@ -227,6 +237,72 @@ export default function Billing() {
     });
   }
 
+  // Edit mode: lists everything that will change on the bill (old -> new) and asks before saving.
+  // Nothing changed -> no question. The credit-to-paid and customer-change warnings below still
+  // follow, since they explain what happens to the money.
+  async function confirmEditChanges() {
+    if (!original) return true;
+    const rs = (n) => `Rs. ${formatAmount(n)}`;
+    const discountText = (d) => (d ? (d.type === "percent" ? `${d.value}%` : rs(d.value)) : "None");
+    const lines = [];
+
+    if (original.party && customer && original.party._id !== customer._id) {
+      lines.push(["Customer", original.party.name, customer.name]);
+    }
+
+    const before = new Map(original.items.map((item) => [item.productId, item]));
+    const after = new Map(cart.map((c) => [String(c.product._id), c]));
+    for (const [id, old] of before) {
+      const now = after.get(id);
+      if (!now) {
+        lines.push([old.bearingNumber, `${old.quantity} × ${rs(old.unitPrice)}`, "Removed"]);
+        continue;
+      }
+      if (now.quantity !== old.quantity) lines.push([`${old.bearingNumber} qty`, old.quantity, now.quantity]);
+      if (roundAmount(now.unitPrice) !== roundAmount(old.unitPrice)) {
+        lines.push([`${old.bearingNumber} rate`, rs(old.unitPrice), rs(now.unitPrice)]);
+      }
+    }
+    for (const [id, now] of after) {
+      if (!before.has(id)) lines.push([now.product.bearingNumber, "Added", `${now.quantity} × ${rs(now.unitPrice)}`]);
+    }
+
+    const discountNow = discountPreview > 0 ? { type: discountType, value: discountNumber } : null;
+    if (discountText(original.discount) !== discountText(discountNow)) {
+      lines.push(["Discount", discountText(original.discount), discountText(discountNow)]);
+    }
+    if (paymentMode !== original.paymentMode) {
+      lines.push(["Payment Mode", paymentModeLabel(original.paymentMode), paymentModeLabel(paymentMode)]);
+    }
+    if (applyTax && isInterState !== original.isInterState) {
+      const supply = (inter) => (inter ? "Inter-state (IGST)" : "Same state (CGST + SGST)");
+      lines.push(["GST type", supply(original.isInterState), supply(isInterState)]);
+    }
+    if (!lines.length) return true;
+
+    if (roundAmount(totalAfterTax) !== roundAmount(original.grandTotal)) {
+      lines.push(["Bill Total", rs(original.grandTotal), rs(totalAfterTax)]);
+    }
+
+    return confirm({
+      title: `Save changes to ${editInvoiceNo}?`,
+      message: (
+        <>
+          These details will change:
+          <br />
+          {lines.map(([label, from, to], i) => (
+            <span key={i}>
+              <br />
+              <strong>{label}:</strong> {from} → <strong>{to}</strong>
+            </span>
+          ))}
+        </>
+      ),
+      confirmLabel: "Yes, Save Changes",
+      danger: false,
+    });
+  }
+
   // Edit mode: a credit bill switched to Cash/UPI/Card counts the money as received on the bill's
   // own date, not today — so it's missing from today's Payments Received and changes a past day's
   // total. Receive Payment records it on the day it actually came in.
@@ -307,7 +383,7 @@ export default function Billing() {
       return;
     }
     const ok = editId
-      ? (await confirmCreditToPaid()) && (await confirmCustomerChange())
+      ? (await confirmEditChanges()) && (await confirmCreditToPaid()) && (await confirmCustomerChange())
       : await confirmCheckout();
     if (!ok || saving) return;
     // Block the whole screen until the server answers, so nothing can be changed or clicked

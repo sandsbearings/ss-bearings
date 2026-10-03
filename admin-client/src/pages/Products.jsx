@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/client";
 import { formatAmount } from "../utils/formatAmount";
@@ -25,6 +25,35 @@ function toNumberOrUndefined(value) {
   return value === "" ? undefined : Number(value);
 }
 
+// Every field of the edit form, for the "check before saving" summary when a product is edited.
+// kind: "text" | "money" | "number" | "optionalNumber" (may be left blank, e.g. weight)
+const CONFIRM_FIELDS = [
+  { key: "bearingNumber", label: "Bearing Number", kind: "text" },
+  { key: "hsnCode", label: "HSN Code", kind: "text" },
+  { key: "family", label: "Category", kind: "text" },
+  { key: "brand", label: "Brand", kind: "text" },
+  { key: "description", label: "Description", kind: "text" },
+  { key: "costPrice", label: "Cost Price", kind: "money" },
+  { key: "retailPrice", label: "Retail Price", kind: "money" },
+  { key: "wholesalePrice", label: "Wholesale Price", kind: "money" },
+  { key: "currentStock", label: "Current Stock", kind: "number" },
+  { key: "reorderLevel", label: "Reorder Level", kind: "number" },
+  { key: "weight", label: "Weight (Kg)", kind: "optionalNumber" },
+];
+
+// A field's value in a form that compares cleanly (trimmed text, numbers as numbers, blank as "").
+function comparable(field, value) {
+  if (field.kind === "text") return String(value ?? "").trim();
+  if (field.kind === "optionalNumber") return value === "" || value === null || value === undefined ? "" : Number(value);
+  return Number(value) || 0;
+}
+
+function showValue(field, value) {
+  if (value === "") return "—";
+  if (field.kind === "money") return `Rs. ${formatAmount(value)}`;
+  return String(value);
+}
+
 export default function Products() {
   const confirm = useConfirm();
   const [products, setProducts] = useState([]);
@@ -42,6 +71,8 @@ export default function Products() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [original, setOriginal] = useState(null); // edit mode: the form's values when it opened
+  const confirmingRef = useRef(false); // true while the "save changes?" box is open
 
   async function loadProducts(currentSearch, currentFamily, currentPage) {
     setLoading(true);
@@ -89,7 +120,8 @@ export default function Products() {
   useEffect(() => {
     if (!formOpen) return;
     function handleKey(e) {
-      if (e.key === "Escape") closeForm();
+      // Esc on the "save changes?" box only closes that box, not the form behind it.
+      if (e.key === "Escape" && !confirmingRef.current) closeForm();
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -113,7 +145,7 @@ export default function Products() {
 
   function startEdit(product) {
     setEditingId(product._id);
-    setForm({
+    const editForm = {
       bearingNumber: product.bearingNumber,
       brand: product.brand || "Generic",
       family: product.family || "",
@@ -125,7 +157,9 @@ export default function Products() {
       wholesalePrice: product.wholesalePrice,
       currentStock: product.currentStock,
       reorderLevel: product.reorderLevel,
-    });
+    };
+    setForm(editForm);
+    setOriginal(Object.fromEntries(CONFIRM_FIELDS.map((field) => [field.key, comparable(field, editForm[field.key])])));
     setError("");
     setFormOpen(true);
   }
@@ -136,9 +170,49 @@ export default function Products() {
     setFormOpen(false);
   }
 
+  // Edit mode: asks before saving when any field changed, listing old -> new.
+  async function confirmChanges() {
+    if (!editingId || !original) return true;
+    const changes = CONFIRM_FIELDS.filter((field) => comparable(field, form[field.key]) !== original[field.key]);
+    if (!changes.length) return true;
+
+    // Long text (e.g. description) is shortened so the box stays readable.
+    const short = (text) => (text.length > 60 ? `${text.slice(0, 57)}...` : text);
+    confirmingRef.current = true;
+    try {
+      return await confirm({
+        title: `Save changes to ${original.bearingNumber}?`,
+        message: (
+          <>
+            These details will change:
+            <br />
+            {changes.map((field) => {
+              const before = original[field.key];
+              const after = comparable(field, form[field.key]);
+              const diff = after - before;
+              return (
+                <span key={field.key}>
+                  <br />
+                  <strong>{field.label}:</strong> {short(showValue(field, before))} →{" "}
+                  <strong>{short(showValue(field, after))}</strong>
+                  {field.key === "currentStock" && ` (${diff > 0 ? "+" : ""}${diff})`}
+                </span>
+              );
+            })}
+          </>
+        ),
+        confirmLabel: "Yes, Save Changes",
+        danger: false,
+      });
+    } finally {
+      confirmingRef.current = false;
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (!(await confirmChanges())) return;
     try {
       const payload = {
         ...form,

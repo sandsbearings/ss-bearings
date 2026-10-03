@@ -3,7 +3,8 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const SETTINGS_LINKS = [
-  { to: "/users", label: "Users", adminOnly: true },
+  // Users is hidden for now (no extra accounts needed). To bring it back, re-add:
+  // { to: "/users", label: "Users", adminOnly: true },
   { to: "/categories", label: "Categories", adminOnly: true },
   { to: "/brands", label: "Brands", adminOnly: true },
   { to: "/ws-parties", label: "WSParties", adminOnly: true },
