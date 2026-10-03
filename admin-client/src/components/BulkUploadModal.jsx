@@ -378,7 +378,7 @@ export default function BulkUploadModal({ brands, categories, onClose, onImporte
                 (e.g. 4 in stock + 25 in the sheet = 29) — it's treated as a restock count, not a
                 replacement. For new products it's used as-is as the opening stock.
               </p>
-              <div className="table-wrap">
+              <div className="table-wrap no-stack">
                 <table>
                   <thead>
                     <tr>
@@ -492,7 +492,7 @@ export default function BulkUploadModal({ brands, categories, onClose, onImporte
                 </div>
               </div>
               {result.summary.errors > 0 && (
-                <div className="table-wrap" style={{ marginTop: "1rem" }}>
+                <div className="table-wrap no-stack" style={{ marginTop: "1rem" }}>
                   <table>
                     <thead>
                       <tr>

@@ -9,6 +9,9 @@ const partySchema = new mongoose.Schema(
     gstin: { type: String, trim: true, uppercase: true },
     pan: { type: String, trim: true, uppercase: true },
     address: { type: String, trim: true },
+    // Which product price Billing fills in for this customer. Only changed from the Wholesale
+    // Customers page (PUT /api/parties/:id/price-type), never by the normal party edit.
+    priceType: { type: String, enum: ["retail", "wholesale"], default: "retail" },
     // Customer: what they owe us right now — unpaid bills + unpaid opening balance, minus any advance
     // (so negative = advance). Only invoices and payments change it; never edited directly.
     creditBalance: { ...money, default: 0 },

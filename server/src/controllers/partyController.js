@@ -6,13 +6,14 @@ import { getPagination, buildPage } from "../utils/paginate.js";
 import { searchRegex } from "../utils/searchRegex.js";
 import { roundAmount } from "../utils/money.js";
 
-// GET /api/parties?type=customer|supplier&search=&gstin=with|without&page=&limit=
+// GET /api/parties?type=customer|supplier&search=&gstin=with|without&priceType=wholesale&page=&limit=
 // Paginated, for the Parties admin list; ?all=1 returns every match (for the CSV download).
 // Each party comes with totalBusiness: everything billed to them so far (voided bills excluded).
 export const listParties = asyncHandler(async (req, res) => {
-  const { type, search, gstin } = req.query;
+  const { type, search, gstin, priceType } = req.query;
   const query = {};
   if (type) query.type = type;
+  if (priceType === "wholesale") query.priceType = "wholesale";
   if (search) {
     query.$or = [{ name: searchRegex(search) }, { phone: searchRegex(search) }];
   }
@@ -60,11 +61,32 @@ export const getParty = asyncHandler(async (req, res) => {
 
 // Balances are only ever changed by invoices and payments (see utils/creditLedger.js), never by
 // editing the party, so they're stripped from create/update bodies. So is the type: every party
-// is now a customer (suppliers were only for the hidden Purchases page).
+// is now a customer (suppliers were only for the hidden Purchases page). The price type has its own
+// admin-only endpoint (setPriceType), so it's stripped too.
 function partyFields(body) {
-  const { creditBalance, openingBalance, openingPaid, type, ...fields } = body;
+  const { creditBalance, openingBalance, openingPaid, type, priceType, ...fields } = body;
   return fields;
 }
+
+// PUT /api/parties/:id/price-type   body: { priceType: "retail" | "wholesale" }  (admin only)
+// Adds a customer to (or removes them from) the wholesale price list used by Billing.
+export const setPriceType = asyncHandler(async (req, res) => {
+  const { priceType } = req.body;
+  if (priceType !== "retail" && priceType !== "wholesale") {
+    res.status(400);
+    throw new Error("Price type must be retail or wholesale");
+  }
+  const party = await Party.findOneAndUpdate(
+    { _id: req.params.id, type: "customer" },
+    { priceType },
+    { new: true }
+  );
+  if (!party) {
+    res.status(404);
+    throw new Error("Customer not found");
+  }
+  res.json(party);
+});
 
 // New parties are always customers and start at a zero balance; only bills and payments change it.
 export const createParty = asyncHandler(async (req, res) => {

@@ -5,6 +5,7 @@ import { formatAmount } from "../utils/formatAmount";
 import { useConfirm } from "../context/ConfirmContext";
 import Pagination from "../components/Pagination";
 import BulkUploadModal from "../components/BulkUploadModal";
+import NumberInput from "../components/NumberInput";
 
 const emptyForm = {
   bearingNumber: "",
@@ -336,26 +337,23 @@ export default function Products() {
                 <div className="form-grid cols-3">
                   <label>
                     Cost Price
-                    <input
-                      type="number"
+                    <NumberInput
                       value={form.costPrice}
-                      onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })}
+                      onChange={(n) => setForm((prev) => ({ ...prev, costPrice: n }))}
                     />
                   </label>
                   <label>
                     Retail Price
-                    <input
-                      type="number"
+                    <NumberInput
                       value={form.retailPrice}
-                      onChange={(e) => setForm({ ...form, retailPrice: Number(e.target.value) })}
+                      onChange={(n) => setForm((prev) => ({ ...prev, retailPrice: n }))}
                     />
                   </label>
                   <label>
                     Wholesale Price
-                    <input
-                      type="number"
+                    <NumberInput
                       value={form.wholesalePrice}
-                      onChange={(e) => setForm({ ...form, wholesalePrice: Number(e.target.value) })}
+                      onChange={(n) => setForm((prev) => ({ ...prev, wholesalePrice: n }))}
                     />
                   </label>
                 </div>
@@ -366,18 +364,16 @@ export default function Products() {
                 <div className="form-grid cols-3">
                   <label>
                     {editingId ? "Current Stock" : "Opening Stock"}
-                    <input
-                      type="number"
+                    <NumberInput
                       value={form.currentStock}
-                      onChange={(e) => setForm({ ...form, currentStock: Number(e.target.value) })}
+                      onChange={(n) => setForm((prev) => ({ ...prev, currentStock: n }))}
                     />
                   </label>
                   <label>
                     Reorder Level
-                    <input
-                      type="number"
+                    <NumberInput
                       value={form.reorderLevel}
-                      onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })}
+                      onChange={(n) => setForm((prev) => ({ ...prev, reorderLevel: n }))}
                     />
                   </label>
                   <label>

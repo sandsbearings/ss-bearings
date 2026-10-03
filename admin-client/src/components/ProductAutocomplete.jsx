@@ -84,7 +84,10 @@ export default function ProductAutocomplete({ onSelect, placeholder = "Search be
               <li
                 key={p._id}
                 className={i === highlight ? "highlighted" : ""}
-                onMouseDown={() => selectProduct(p)}
+                onMouseDown={(e) => {
+                  e.preventDefault(); // keep the cursor in the search box, ready for the next item
+                  selectProduct(p);
+                }}
                 onMouseEnter={() => setHighlight(i)}
               >
                 <span>

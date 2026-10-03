@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api/client";
 import { openInvoicePdf } from "../utils/invoicePdf";
 import ProductAutocomplete from "../components/ProductAutocomplete";
 import CustomerAutocomplete from "../components/CustomerAutocomplete";
 import NewCustomerModal from "../components/NewCustomerModal";
+import NumberInput from "../components/NumberInput";
 import { formatAmount, roundAmount } from "../utils/formatAmount";
 import { useConfirm } from "../context/ConfirmContext";
 import { paymentModeLabel } from "../utils/paymentLabels";
@@ -14,6 +15,14 @@ import { formatDate } from "../utils/formatDate";
 // before checkout; the server always recomputes it authoritatively.
 const GST_RATE_PREVIEW = 18;
 
+// The rate a product starts at for this customer: wholesale price for customers on the Wholesale
+// Customers list (retail if the product has no wholesale price), retail for everyone else.
+// Same rule as resolveInvoiceItems in server/src/controllers/invoiceController.js.
+function rateFor(product, customer) {
+  if (customer?.priceType === "wholesale" && product.wholesalePrice > 0) return product.wholesalePrice;
+  return product.retailPrice;
+}
+
 export default function Billing() {
   const { id: editId } = useParams();
   const navigate = useNavigate();
@@ -21,10 +30,10 @@ export default function Billing() {
   const [customers, setCustomers] = useState([]);
   const [customer, setCustomer] = useState(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
-  const [cart, setCart] = useState([]); // { product, quantity, unitPrice }
-  const [paymentMode, setPaymentMode] = useState("cash");
+  const [cart, setCart] = useState([]); // { product, quantity, unitPrice, rateEdited }
+  const [paymentMode, setPaymentMode] = useState("credit");
   const [isInterState, setIsInterState] = useState(false);
-  const [applyTax, setApplyTax] = useState(true);
+  const [applyTax, setApplyTax] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountType, setDiscountType] = useState("flat");
   const [discountValue, setDiscountValue] = useState("");
@@ -35,6 +44,17 @@ export default function Billing() {
   const [saving, setSaving] = useState(false); // bill being saved: screen blocked
   const [loadingInvoice, setLoadingInvoice] = useState(!!editId);
   const [loadError, setLoadError] = useState("");
+  const itemSearchRef = useRef(null);
+  const scrollToNewItem = useRef(false); // set by addToCart; the effect below scrolls once it's on screen
+
+  // After an item is added, bring the last line of the list (and the search box under it) into view,
+  // and keep the cursor in the search box so the next item can be typed straight away.
+  useEffect(() => {
+    if (!scrollToNewItem.current) return;
+    scrollToNewItem.current = false;
+    itemSearchRef.current?.querySelector("input")?.focus({ preventScroll: true });
+    itemSearchRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [cart]);
 
   useEffect(() => {
     api.get("/parties/all", { params: { type: "customer" } }).then((res) => setCustomers(res.data));
@@ -80,6 +100,7 @@ export default function Billing() {
             },
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            rateEdited: true, // keep the bill's saved rates, even if the customer is changed
           }))
         );
         if (data.discountAmount > 0) {
@@ -92,13 +113,20 @@ export default function Billing() {
       .finally(() => setLoadingInvoice(false));
   }, [editId]);
 
+  // Picking (or changing) the customer re-prices the cart for them — except rates the cashier typed.
+  function selectCustomer(party) {
+    setCustomer(party);
+    setCart((prev) => prev.map((c) => (c.rateEdited ? c : { ...c, unitPrice: rateFor(c.product, party) })));
+  }
+
   function handleCustomerCreated(party) {
     setCustomers((prev) => [...prev, party]);
-    setCustomer(party);
+    selectCustomer(party);
     setNewCustomerOpen(false);
   }
 
   function addToCart(product) {
+    scrollToNewItem.current = true;
     setCart((prev) => {
       const existing = prev.find((c) => c.product._id === product._id);
       if (existing) {
@@ -106,7 +134,7 @@ export default function Billing() {
           c.product._id === product._id ? { ...c, quantity: c.quantity + 1 } : c
         );
       }
-      return [...prev, { product, quantity: 1, unitPrice: product.retailPrice }];
+      return [...prev, { product, quantity: 1, unitPrice: rateFor(product, customer), rateEdited: false }];
     });
   }
 
@@ -115,7 +143,9 @@ export default function Billing() {
   }
 
   function updatePrice(productId, unitPrice) {
-    setCart((prev) => prev.map((c) => (c.product._id === productId ? { ...c, unitPrice } : c)));
+    setCart((prev) =>
+      prev.map((c) => (c.product._id === productId ? { ...c, unitPrice, rateEdited: true } : c))
+    );
   }
 
   function removeFromCart(productId) {
@@ -126,7 +156,8 @@ export default function Billing() {
     setDiscountOpen(false);
     setDiscountType("flat");
     setDiscountValue("");
-    setApplyTax(true);
+    setApplyTax(false);
+    setPaymentMode("credit");
   }
 
   // Rounded the same way as server/src/utils/gstCalc.js so the preview matches the saved invoice.
@@ -378,17 +409,18 @@ export default function Billing() {
               Customer *
               <div className="customer-row">
                 <div className="customer-row-search">
-                  <CustomerAutocomplete customers={customers} selected={customer} onSelect={setCustomer} />
+                  <CustomerAutocomplete customers={customers} selected={customer} onSelect={selectCustomer} />
                 </div>
                 <button type="button" className="secondary" onClick={() => setNewCustomerOpen(true)}>
                   + New Customer
                 </button>
               </div>
             </label>
-
-            <div style={{ marginTop: "0.75rem" }}>
-              <ProductAutocomplete onSelect={addToCart} />
-            </div>
+            {customer?.priceType === "wholesale" && (
+              <span className="badge orange" style={{ marginTop: "0.4rem" }} title="Wholesale rates">
+                WS
+              </span>
+            )}
           </div>
 
           <div className="table-wrap">
@@ -407,7 +439,7 @@ export default function Billing() {
                 {cart.length === 0 && (
                   <tr>
                     <td colSpan={6} className="muted" style={{ textAlign: "center" }}>
-                      Cart is empty — search and add items above
+                      Cart is empty — search and add items below
                     </td>
                   </tr>
                 )}
@@ -416,22 +448,21 @@ export default function Billing() {
                     <td>{c.product.bearingNumber}</td>
                     <td>{c.product.hsnCode || "—"}</td>
                     <td>
-                      <input
+                      <NumberInput
                         className="qty-input"
-                        type="number"
                         min="1"
                         value={c.quantity}
-                        onChange={(e) => updateQty(c.product._id, Number(e.target.value))}
+                        emptyValue={1}
+                        onChange={(n) => updateQty(c.product._id, n)}
                       />
                     </td>
                     <td>
-                      <input
+                      <NumberInput
                         className="price-input"
-                        type="number"
                         min="0"
                         step="0.01"
                         value={c.unitPrice}
-                        onChange={(e) => updatePrice(c.product._id, Number(e.target.value))}
+                        onChange={(n) => updatePrice(c.product._id, n)}
                       />
                     </td>
                     <td>{formatAmount(c.quantity * c.unitPrice)}</td>
@@ -454,6 +485,11 @@ export default function Billing() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Item search sits under the list, so the newest line and the box to add the next one stay together. */}
+          <div ref={itemSearchRef} style={{ marginTop: "0.75rem", scrollMarginBottom: "1rem" }}>
+            <ProductAutocomplete onSelect={addToCart} />
           </div>
         </div>
 

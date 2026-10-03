@@ -139,6 +139,122 @@ a {
   font-size: 0.7em;
 }
 
+/* Settings: a ⚙ row inside the profile menu that expands to the settings pages */
+.profile-settings {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+button.profile-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+button.profile-settings-toggle:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+button.profile-settings-toggle.active {
+  color: var(--color-primary-dark);
+}
+
+.profile-settings-toggle .caret {
+  margin-left: auto;
+  font-size: 0.7em;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.profile-settings-toggle[aria-expanded="true"] .caret {
+  transform: rotate(180deg);
+}
+
+/* Slides open/closed: the grid row animates from 0 to the links' natural height, with a soft
+   ease-out curve, and each link drifts in a moment after the one above it. */
+.profile-settings-links {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s ease;
+}
+
+.profile-settings-links.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.profile-settings-links > div {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-top: 0.15rem;
+}
+
+.nav-dropdown-menu a.profile-settings-link {
+  padding-left: 2.1rem;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.15s ease;
+}
+
+.profile-settings-links.open a.profile-settings-link {
+  opacity: 1;
+  transform: none;
+}
+
+.profile-settings-links.open a.profile-settings-link:nth-child(1) { transition-delay: 0.04s, 0.04s, 0s; }
+.profile-settings-links.open a.profile-settings-link:nth-child(2) { transition-delay: 0.08s, 0.08s, 0s; }
+.profile-settings-links.open a.profile-settings-link:nth-child(3) { transition-delay: 0.12s, 0.12s, 0s; }
+.profile-settings-links.open a.profile-settings-link:nth-child(4) { transition-delay: 0.16s, 0.16s, 0s; }
+.profile-settings-links.open a.profile-settings-link:nth-child(5) { transition-delay: 0.2s, 0.2s, 0s; }
+
+/* The profile menu itself fades and drops in instead of popping up. */
+.profile-menu {
+  animation: profile-menu-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+@keyframes profile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-settings-links,
+  .profile-settings-toggle .caret,
+  .nav-dropdown-menu a.profile-settings-link {
+    transition: none;
+  }
+  .profile-menu {
+    animation: none;
+  }
+}
+
 .nav-dropdown-menu {
   position: absolute;
   top: calc(100% + 2px);
@@ -1151,7 +1267,8 @@ button.mode-chip.active:hover:not(:disabled) {
 /* POS / Billing */
 .pos-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  /* Items take all the spare room; Checkout stays a narrow fixed-width column. */
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 1.25rem;
   align-items: start;
 }
@@ -1306,4 +1423,313 @@ td.col-action {
 
 .autocomplete-list li.autocomplete-empty:hover {
   background: transparent;
+}
+
+/* =========================================================================================
+   Mobile & tablet layout. Everything below only changes how pages are laid out on small
+   screens; on a desktop the app looks the same as before.
+   ========================================================================================= */
+
+/* Navbar links: in the bar on desktop; ☰ drop-down menu on phones/tablets (see Layout.jsx). */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+button.nav-menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 0.5rem;
+  margin-right: 0.25rem;
+  line-height: 0;
+}
+
+button.nav-menu-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 900px) {
+  button.nav-menu-toggle {
+    display: inline-flex;
+  }
+
+  .nav-logo {
+    height: 32px;
+    margin: 0.5rem 0.5rem 0.5rem 0;
+  }
+
+  .nav-links {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--color-dark);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 24px rgba(22, 17, 36, 0.35);
+    padding: 0.25rem 0 0.5rem;
+    /* Slides down when opened */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition:
+      opacity 0.25s ease,
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0.3s;
+  }
+
+  .nav-links.open {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      opacity 0.25s ease,
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s;
+  }
+
+  .nav-links a {
+    padding: 0.85rem 1.25rem;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+    font-size: 1rem;
+  }
+
+  .nav-links a.active {
+    border-left-color: var(--color-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+@media (max-width: 640px) {
+  /* 16px text stops iPhones zooming the page when a box is tapped. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  h3 {
+    margin-top: 1.5rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  /* Bigger touch targets for icon buttons */
+  .icon-btn {
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  /* Filters: two per row, search full width */
+  .filter-bar {
+    gap: 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .filter-field {
+    flex: 1 1 calc(50% - 0.75rem);
+    min-width: 0;
+  }
+
+  .filter-field input,
+  .filter-field select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filter-bar > button {
+    flex: 1 1 100%;
+  }
+
+  .report-toolbar > * {
+    flex: 1 1 100%;
+  }
+
+  .report-toolbar input,
+  .report-toolbar select {
+    width: 100%;
+    max-width: none !important;
+  }
+
+  .stat {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .pagination {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .pagination .muted {
+    flex: 1 1 100%;
+    order: -1;
+    text-align: center;
+  }
+
+  /* Pop-ups: use almost the whole screen */
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .modal-card {
+    padding: 1.1rem;
+  }
+
+  .modal-card.wide,
+  .modal-card.product-form-card,
+  .modal-card.bulk-upload-card {
+    max-height: 94vh;
+    max-height: 94dvh;
+  }
+
+  .modal-form-header {
+    padding: 1.1rem 1.1rem 0;
+  }
+
+  .modal-form-body {
+    padding: 0.85rem 1.1rem 1.1rem;
+  }
+
+  .modal-form-footer {
+    padding: 0.85rem 1.1rem;
+  }
+
+  .modal-form-footer > button {
+    flex: 1;
+  }
+
+  /* Billing: "+ New Customer" drops under the customer search */
+  .customer-row {
+    flex-wrap: wrap;
+  }
+
+  .customer-row-search {
+    flex: 1 1 100%;
+  }
+
+  .customer-row > button {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---- Mobile: tables as cards ------------------------------------------------------------
+   Each row becomes a card; each cell a "Label ........ value" line. The labels come from the
+   table's header (utils/mobileTables.js). Opt out with .table-wrap.no-stack. */
+@media (max-width: 640px) {
+  .table-wrap:not(.no-stack) {
+    border: none;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .table-wrap:not(.no-stack) table {
+    min-width: 0;
+  }
+
+  .table-wrap:not(.no-stack) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-wrap:not(.no-stack) table,
+  .table-wrap:not(.no-stack) tbody {
+    display: block;
+  }
+
+  .table-wrap:not(.no-stack) tbody tr {
+    display: block;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.4rem 0.85rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .table-wrap:not(.no-stack) tbody tr:hover {
+    background: var(--color-surface);
+  }
+
+  /* Label floats left, the cell's own content (however many pieces) sits together on the right. */
+  .table-wrap:not(.no-stack) tbody td {
+    display: block;
+    padding: 0.45rem 0;
+    border-top: 1px dashed var(--color-border);
+    text-align: right;
+    width: auto;
+    white-space: normal;
+  }
+
+  .table-wrap:not(.no-stack) tbody td::before {
+    content: attr(data-label);
+    float: left;
+    max-width: 45%;
+    margin-right: 1rem;
+    padding-top: 0.1rem;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .table-wrap:not(.no-stack) tbody td::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+
+  /* First cell = the card's title (invoice no., name, bearing no. ...) */
+  .table-wrap:not(.no-stack) tbody td:first-child {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.98rem;
+    color: var(--color-dark);
+    text-align: left;
+  }
+
+  .table-wrap:not(.no-stack) tbody td:first-child::before {
+    display: none;
+  }
+
+  /* Cells with nothing in them, or no column name (action buttons), skip the label line */
+  .table-wrap:not(.no-stack) tbody td:empty {
+    display: none;
+  }
+
+  .table-wrap:not(.no-stack) tbody td[data-label=""]::before {
+    display: none;
+  }
+
+  /* Action-button cells: the .actions row lines up on the right */
+  .table-wrap:not(.no-stack) tbody td .actions {
+    justify-content: flex-end;
+  }
+
+  /* Full-width messages ("No invoices found.") */
+  .table-wrap:not(.no-stack) tbody td[data-full] {
+    text-align: center;
+    border-top: none;
+  }
+
+  /* Invoices: payment status block lines up on the right */
+  .table-wrap:not(.no-stack) .pay-status {
+    align-items: flex-end;
+  }
 }

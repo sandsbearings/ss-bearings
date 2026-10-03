@@ -15,6 +15,7 @@ import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
 import Brands from "./pages/Brands";
+import WholesaleCustomers from "./pages/WholesaleCustomers";
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/brands" element={<Brands />} />
+            <Route path="/ws-parties" element={<WholesaleCustomers />} />
           </Route>
         </Route>
       </Route>

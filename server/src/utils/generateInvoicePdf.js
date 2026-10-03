@@ -46,7 +46,7 @@ export function streamInvoicePdf(invoice, party, res) {
     doc.save();
     doc.opacity(0.18);
     doc.rotate(-38, { origin: [doc.page.width / 2, doc.page.height / 2] });
-    doc.font("Helvetica-Bold").fontSize(110).fillColor("#c0392b");
+    doc.font("Times-Bold").fontSize(110).fillColor("#c0392b");
     doc.text("VOIDED", 0, doc.page.height / 2 - 60, { width: doc.page.width, align: "center" });
     doc.restore();
   }
@@ -82,7 +82,7 @@ export function streamInvoicePdf(invoice, party, res) {
 
   // ---- Header banner: full page width, light panel + diagonal navy title panel ----
   const pageWidth = doc.page.width;
-  const BANNER_HEIGHT = 130;
+  const BANNER_HEIGHT = 100;
   const BANNER_BG = "#f2f3f6";
 
   doc.rect(0, 0, pageWidth, BANNER_HEIGHT).fill(BANNER_BG);
@@ -126,15 +126,15 @@ export function streamInvoicePdf(invoice, party, res) {
 
   // Logo (already includes the "BEARING AND MACHINERIES" wordmark) + divider.
   const bannerLeft = 20;
-  const bannerLogoHeight = 96;
+  const bannerLogoHeight = 76;
   const bannerLogoWidth = bannerLogoHeight * LOGO_ASPECT;
   if (hasLogo) {
     doc.image(LOGO_PATH, bannerLeft, (BANNER_HEIGHT - bannerLogoHeight) / 2, { height: bannerLogoHeight });
   }
   const dividerX = bannerLeft + bannerLogoWidth + 14;
   doc
-    .moveTo(dividerX, 22)
-    .lineTo(dividerX, BANNER_HEIGHT - 22)
+    .moveTo(dividerX, 16)
+    .lineTo(dividerX, BANNER_HEIGHT - 16)
     .strokeColor(BORDER)
     .lineWidth(1)
     .stroke();
@@ -144,9 +144,9 @@ export function streamInvoicePdf(invoice, party, res) {
   const textX = dividerX + 16;
   const textColWidth = gapRight - gapWidth - 10 - textX;
 
-  doc.font("Helvetica-Bold").fontSize(18).fillColor(BRAND_DARK).text(companyName, textX, 20, { width: textColWidth, lineBreak: false });
+  doc.font("Times-Bold").fontSize(18).fillColor(BRAND_DARK).text(companyName, textX, 16, { width: textColWidth, lineBreak: false });
   doc
-    .font("Helvetica")
+    .font("Times-Roman")
     .fontSize(8.5)
     .fillColor(TEXT_MUTED)
     .text(tagline, textX, doc.y + 3, { width: textColWidth });
@@ -186,11 +186,16 @@ export function streamInvoicePdf(invoice, party, res) {
     ["shield", "Trusted Partner"],
     ["truck", "On-Time Support"],
   ];
-  const bulletY = Math.max(doc.y + 8, BANNER_HEIGHT - 32);
+  const bulletY = Math.max(doc.y + 8, BANNER_HEIGHT - 28);
   let bulletX = textX;
-  doc.font("Helvetica").fontSize(7.5).fillColor(TEXT_MUTED);
+  const BULLET_FONT_SIZE = 7.5;
+  doc.font("Times-Roman").fontSize(BULLET_FONT_SIZE).fillColor(TEXT_MUTED);
+  // Text is placed from the top of its line, so the middle of the capital letters sits at
+  // (ascender - capHeight / 2) down from there — 683 and 662 per 1000 for Times-Roman. The icons are
+  // centred on that line so they sit level with the words next to them.
+  const bulletMidY = bulletY + ((683 - 662 / 2) / 1000) * BULLET_FONT_SIZE;
   bullets.forEach(([kind, label]) => {
-    featureIcon(kind, bulletX + 6, bulletY + 5);
+    featureIcon(kind, bulletX + 6, bulletMidY);
     const labelWidth = doc.widthOfString(label);
     doc.fillColor(TEXT_MUTED).text(label, bulletX + 15, bulletY, { lineBreak: false });
     bulletX += 15 + labelWidth + 14;
@@ -203,13 +208,13 @@ export function streamInvoicePdf(invoice, party, res) {
   const isTaxed = (invoice.items[0]?.gstRate ?? 0) > 0;
   const docTitle = isTaxed ? "TAX INVOICE" : "BILL OF SUPPLY";
   let titleSize = 17;
-  doc.font("Helvetica-Bold").fontSize(titleSize);
+  doc.font("Times-Bold").fontSize(titleSize);
   while (titleSize > 11 && doc.widthOfString(docTitle) > navyTextWidth) {
     doc.fontSize(--titleSize);
   }
   doc
     .fillColor("#fff")
-    .text(docTitle, navyTextX, 46, { width: navyTextWidth, lineBreak: false });
+    .text(docTitle, navyTextX, 30, { width: navyTextWidth, lineBreak: false });
   doc
     .moveTo(navyTextX, doc.y + 4)
     .lineTo(navyTextX + Math.min(navyTextWidth, 90), doc.y + 4)
@@ -217,7 +222,7 @@ export function streamInvoicePdf(invoice, party, res) {
     .lineWidth(1.5)
     .stroke();
   doc
-    .font("Helvetica")
+    .font("Times-Roman")
     .fontSize(9)
     .fillColor("#cfd3e0")
     .text(invoice.invoiceNo, navyTextX, doc.y + 10, { width: navyTextWidth });
@@ -226,28 +231,28 @@ export function streamInvoicePdf(invoice, party, res) {
   doc.rect(0, BANNER_HEIGHT, navyBottomX, 4).fill(BRAND_ORANGE);
   doc.rect(navyBottomX + 6, BANNER_HEIGHT, pageWidth - navyBottomX - 6, 4).fill(BRAND_DARK);
 
-  const afterHeaderY = BANNER_HEIGHT + 18;
+  const afterHeaderY = BANNER_HEIGHT + 12;
 
   // ---- Bill From / Bill To ----
-  const billTop = afterHeaderY + 14;
+  const billTop = afterHeaderY + 8;
   const colGap = 20;
   const colWidth = (contentWidth - colGap) / 2;
   const colRightX = left + colWidth + colGap;
 
   function renderParty(x, w, title, name, address, gstin, pan, phone) {
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(TEXT_MUTED).text(title, x, billTop, { width: w });
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(BRAND_DARK).text(name, x, doc.y + 2, { width: w });
+    doc.font("Times-Bold").fontSize(9).fillColor(TEXT_MUTED).text(title, x, billTop, { width: w });
+    doc.font("Times-Bold").fontSize(11).fillColor(BRAND_DARK).text(name, x, doc.y + 2, { width: w });
     if (address) {
-      doc.font("Helvetica").fontSize(9).fillColor("#333").text(address, x, doc.y + 2, { width: w });
+      doc.font("Times-Roman").fontSize(9).fillColor("#333").text(address, x, doc.y + 2, { width: w });
     }
     if (pan) {
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`PAN No.: ${pan}`, x, doc.y + 4, { width: w });
+      doc.font("Times-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`PAN No.: ${pan}`, x, doc.y + 4, { width: w });
     }
     if (gstin) {
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`GSTIN: ${gstin}`, x, doc.y + 2, { width: w });
+      doc.font("Times-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`GSTIN: ${gstin}`, x, doc.y + 2, { width: w });
     }
     if (phone) {
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`Mobile No: ${phone}`, x, doc.y + 2, { width: w });
+      doc.font("Times-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(`Mobile No: ${phone}`, x, doc.y + 2, { width: w });
     }
     return doc.y;
   }
@@ -289,7 +294,7 @@ export function streamInvoicePdf(invoice, party, res) {
   const metaColWidth = contentWidth / metaCols.length;
   const metaPad = 10;
   const metaFontSize = 9;
-  doc.font("Helvetica-Bold").fontSize(metaFontSize);
+  doc.font("Times-Bold").fontSize(metaFontSize);
   const metaTextHeight = doc.heightOfString("Mg", { width: metaColWidth - 20 });
   const metaBoxHeight = metaPad * 2 + metaTextHeight;
   const metaRowY = y + (metaBoxHeight - metaTextHeight) / 2;
@@ -302,11 +307,11 @@ export function streamInvoicePdf(invoice, party, res) {
       doc.moveTo(colX, y).lineTo(colX, y + metaBoxHeight).strokeColor(BORDER).stroke();
     }
     doc
-      .font("Helvetica-Bold")
+      .font("Times-Bold")
       .fontSize(9)
       .fillColor(TEXT_MUTED)
       .text(`${label}: `, colX + 12, metaRowY, { continued: true, width: metaColWidth - 20 });
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(BRAND_DARK).text(value);
+    doc.font("Times-Bold").fontSize(9).fillColor(BRAND_DARK).text(value);
   });
 
   y = y + metaBoxHeight + 18;
@@ -337,11 +342,11 @@ export function streamInvoicePdf(invoice, party, res) {
 
   function drawTableHeaderRow(topY) {
     doc.rect(left, topY, contentWidth, headerHeight).fill(BRAND_DARK);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#fff");
+    doc.font("Times-Bold").fontSize(9).fillColor("#fff");
     cols.forEach((c, i) => {
       doc.text(c.label, colX[i] + 4, topY + 7, { width: c.width - 8, align: c.align });
     });
-    doc.font("Helvetica").fontSize(9).fillColor(BRAND_DARK);
+    doc.font("Times-Roman").fontSize(9).fillColor(BRAND_DARK);
     return topY + headerHeight;
   }
 
@@ -359,7 +364,7 @@ export function streamInvoicePdf(invoice, party, res) {
   // which invoice it belongs to. Returns the Y position to resume drawing at.
   function drawContinuationHeader() {
     doc
-      .font("Helvetica")
+      .font("Times-Roman")
       .fontSize(9)
       .fillColor(TEXT_MUTED)
       .text(`${invoice.invoiceNo} (continued)`, left, 40);
@@ -415,7 +420,7 @@ export function streamInvoicePdf(invoice, party, res) {
     startTableContinuationPage();
   }
   doc.rect(left, rowY, contentWidth, totalRowHeight).fill(ROW_SHADE);
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(BRAND_DARK);
+  doc.font("Times-Bold").fontSize(9).fillColor(BRAND_DARK);
   const totalLabelWidth = cols[1].width + cols[2].width + cols[3].width + cols[4].width - 8;
   doc.text("TOTAL", colX[1] + 4, rowY + 7, { width: totalLabelWidth, align: "right" });
   doc.text(money(invoice.subtotal), colX[5] + 4, rowY + 7, { width: cols[5].width - 8, align: "right" });
@@ -437,7 +442,7 @@ export function streamInvoicePdf(invoice, party, res) {
   // ---- Totals ----
   function totalsLine(label, value, opts = {}) {
     doc
-      .font(opts.bold ? "Helvetica-Bold" : "Helvetica")
+      .font(opts.bold ? "Times-Bold" : "Times-Roman")
       .fontSize(opts.size || 9.5)
       .fillColor(opts.color || BRAND_DARK)
       .text(`${label}: Rs. ${money(value)}`, left, doc.y, { width: contentWidth, align: "right" });
@@ -452,7 +457,7 @@ export function streamInvoicePdf(invoice, party, res) {
     const label =
       invoice.discountType === "percent" ? `Discount (${invoice.discountValue}%)` : "Discount";
     doc
-      .font("Helvetica")
+      .font("Times-Roman")
       .fontSize(9.5)
       .fillColor(BRAND_DARK)
       .text(`${label}: - Rs. ${money(invoice.discountAmount)}`, left, doc.y, { width: contentWidth, align: "right" });
@@ -467,7 +472,7 @@ export function streamInvoicePdf(invoice, party, res) {
   }
   doc.moveDown(0.2);
   doc
-    .font("Helvetica-Bold")
+    .font("Times-Bold")
     .fontSize(13)
     .fillColor(BRAND_ORANGE)
     .text(`Total Due: Rs. ${money(invoice.grandTotal)}`, left, doc.y, { width: contentWidth, align: "right" });
@@ -477,7 +482,7 @@ export function streamInvoicePdf(invoice, party, res) {
   // ---- Banking details (optional) + signature ----
   const bankName = company.bank.name;
   if (bankName) {
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(BRAND_DARK).text("Banking Details for Wire Transfer", left, y);
+    doc.font("Times-Bold").fontSize(9).fillColor(BRAND_DARK).text("Banking Details for Wire Transfer", left, y);
     y = doc.y + 6;
 
     const bankRows = [
@@ -489,7 +494,8 @@ export function streamInvoicePdf(invoice, party, res) {
       ["Bank Address", company.bank.address || "-"],
     ];
     const bankBoxWidth = contentWidth * 0.6;
-    const bankRowH = 16;
+    const bankRowH = 13;
+    const BANK_FONT_SIZE = 8.5;
     const bankBoxHeight = bankRowH * bankRows.length;
     const bankLabelWidth = bankBoxWidth * 0.42;
 
@@ -497,14 +503,14 @@ export function streamInvoicePdf(invoice, party, res) {
     doc.moveTo(left + bankLabelWidth, y).lineTo(left + bankLabelWidth, y + bankBoxHeight).strokeColor(BORDER).stroke();
 
     bankRows.forEach(([label, value], i) => {
-      const rowY2 = y + i * bankRowH + 4;
+      const rowY2 = y + i * bankRowH + 3;
       if (i > 0) {
         doc.moveTo(left, y + i * bankRowH).lineTo(left + bankBoxWidth, y + i * bankRowH).strokeColor(BORDER).stroke();
       }
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(TEXT_MUTED).text(label, left + 6, rowY2, { width: bankLabelWidth - 10 });
+      doc.font("Times-Bold").fontSize(BANK_FONT_SIZE).fillColor(TEXT_MUTED).text(label, left + 6, rowY2, { width: bankLabelWidth - 10 });
       doc
-        .font("Helvetica")
-        .fontSize(8.5)
+        .font("Times-Roman")
+        .fontSize(BANK_FONT_SIZE)
         .fillColor(BRAND_DARK)
         .text(value, left + bankLabelWidth + 6, rowY2, { width: bankBoxWidth - bankLabelWidth - 10 });
     });
@@ -513,7 +519,7 @@ export function streamInvoicePdf(invoice, party, res) {
     const sigWidth = contentWidth - bankBoxWidth - 20;
     if (renderSignatureBlock(sigX, sigWidth, y, bankBoxHeight) === null) {
       doc
-        .font("Helvetica-Oblique")
+        .font("Times-Italic")
         .fontSize(9)
         .fillColor(BRAND_DARK)
         .text(`For ${companyName}`, sigX, y + 4, { width: sigWidth, align: "center" });
@@ -523,7 +529,7 @@ export function streamInvoicePdf(invoice, party, res) {
         .strokeColor(BORDER)
         .stroke();
       doc
-        .font("Helvetica-Bold")
+        .font("Times-Bold")
         .fontSize(8)
         .fillColor(TEXT_MUTED)
         .text("Authorized Signatory", sigX, y + bankBoxHeight - 10, { width: sigWidth, align: "center" });
@@ -537,7 +543,7 @@ export function streamInvoicePdf(invoice, party, res) {
     if (stampHeight === null) {
       doc.moveTo(sigX, y + 30).lineTo(right, y + 30).strokeColor(BORDER).stroke();
       doc
-        .font("Helvetica-Bold")
+        .font("Times-Bold")
         .fontSize(8)
         .fillColor(TEXT_MUTED)
         .text("Authorized Signatory", sigX, y + 34, { width: sigWidth, align: "center" });
@@ -549,7 +555,7 @@ export function streamInvoicePdf(invoice, party, res) {
 
   const footerY = Math.max(y + 10, doc.page.height - doc.page.margins.bottom - 20);
   doc
-    .font("Helvetica")
+    .font("Times-Roman")
     .fontSize(8)
     .fillColor(TEXT_MUTED)
     .text(`Thank you for your business — ${companyName}`, left, footerY, { width: contentWidth, align: "center" });

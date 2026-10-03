@@ -47,7 +47,7 @@ function assertNotGstLocked(res, invoice, action) {
 // productId -> quantity this invoice (when editing) already holds, so stock availability is
 // checked as "what's free right now, plus what this invoice itself already accounts for" — lets
 // an edit validate cleanly with zero DB writes before anything is actually touched.
-async function resolveInvoiceItems(res, items, partyId, applyTax, existingReserved = new Map()) {
+async function resolveInvoiceItems(res, items, partyId, applyTax, priceType, existingReserved = new Map()) {
   if (!partyId) {
     res.status(400);
     throw new Error("Select a customer for the invoice");
@@ -73,9 +73,11 @@ async function resolveInvoiceItems(res, items, partyId, applyTax, existingReserv
       throw new Error(`Insufficient stock for ${product.bearingNumber} (have ${available}, need ${quantity})`);
     }
 
-    // The cashier can override the saved retail price per line at checkout time; falls back
-    // to the product's stored price when not given.
-    let price = product.retailPrice;
+    // The cashier can override the price per line at checkout time; falls back to the product's
+    // stored price for this customer — wholesale for wholesale customers (retail if the product has
+    // no wholesale price), retail for everyone else. Same rule as rateFor in the admin Billing page.
+    let price =
+      priceType === "wholesale" && product.wholesalePrice > 0 ? product.wholesalePrice : product.retailPrice;
     if (unitPrice !== undefined && unitPrice !== null && unitPrice !== "") {
       const n = Number(unitPrice);
       if (!Number.isFinite(n) || n < 0) {
@@ -216,8 +218,8 @@ export const createInvoice = asyncHandler(async (req, res) => {
       discountValue,
     } = req.body;
 
-    const lineInputs = await resolveInvoiceItems(res, items, partyId, applyTax !== false);
     const party = await findBillingParty(res, partyId);
+    const lineInputs = await resolveInvoiceItems(res, items, partyId, applyTax !== false, party.priceType);
     const discount = resolveDiscount(res, discountType, discountValue);
     const totals = calcInvoiceTotals(lineInputs, isInterState, discount);
 
@@ -304,8 +306,15 @@ export const updateInvoice = asyncHandler(async (req, res) => {
       existingReserved.set(key, (existingReserved.get(key) || 0) + item.quantity);
     }
 
-    const lineInputs = await resolveInvoiceItems(res, items, partyId, applyTax !== false, existingReserved);
     const party = await findBillingParty(res, partyId);
+    const lineInputs = await resolveInvoiceItems(
+      res,
+      items,
+      partyId,
+      applyTax !== false,
+      party.priceType,
+      existingReserved
+    );
     const discount = resolveDiscount(res, discountType, discountValue);
     const totals = calcInvoiceTotals(lineInputs, isInterState, discount);
 

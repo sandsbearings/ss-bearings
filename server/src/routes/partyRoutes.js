@@ -6,6 +6,7 @@ import {
   createParty,
   updateParty,
   deleteParty,
+  setPriceType,
 } from "../controllers/partyController.js";
 import { receivePayment, getOpenBills, getStatement } from "../controllers/paymentController.js";
 import { protect, requireRole } from "../middleware/auth.js";
@@ -19,6 +20,7 @@ router.get("/:id", getParty);
 router.post("/", createParty);
 router.put("/:id", updateParty);
 router.delete("/:id", requireRole("admin"), deleteParty);
+router.put("/:id/price-type", requireRole("admin"), setPriceType);
 router.get("/:id/statement", getStatement);
 router.get("/:id/open-bills", getOpenBills);
 router.post("/:id/payments", receivePayment);

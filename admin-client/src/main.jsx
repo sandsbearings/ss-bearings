@@ -5,6 +5,9 @@ import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { ConfirmProvider } from './context/ConfirmContext.jsx'
+import { startMobileTableLabels } from './utils/mobileTables.js'
+
+startMobileTableLabels()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
